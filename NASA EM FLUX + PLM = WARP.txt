@@ -10,7 +10,9 @@ add to it a way to channel and tune the particle field it emits as a quantum str
 soon enough .. I'd say give it another 50 years... it's really just this simple
 .... think of space as multi dimensional matter 
 so the easiest way to calculate it's volume would be to apply :
-(0/1 =X) * ( PI) * (-X) * Lambda over MU * (Y = -x to the power pi by negative x * Mu over Lambda) = Z . So Z divided by E will give you then the variance needed to create a sustainable quantum field (Q) ...
+(0/1 =X) * ( PI) * (-X) * Lambda over MU * (Y = -x to the power pi by negative x * Mu over Lambda) = Z . 
+So Z divided by E will give you then the variance needed to create a sustainable quantum field (Q) ...
+
 so at which point you can utilize (Pi / E * Q) - ( Pi * Lambda / MU )to generate a propulsion field
 
 Joshua Harris
