@@ -14,7 +14,7 @@ Your baseline to solve NP hard would look simmilar to this if Applied to an SSH/
 
    {(P) by Y } by {(L) by X } over {(M) by C } = S
 
-In this case Y is the hexidecimal value for the Public key hash as a child of Chain of Authoriy hash, C is the crypted data's  block size + the file crc hash sting value in decimal (a sha1 or md5 hash converted to hex will do as well), and S is the Secret/Private Key
+In this case Y is the hexidecimal value for the Public key hash as a child of Chain of Authoriy hash, C is the crypted data's  block size + the file crc hash sting value in decimal (a sha1 or md5 hash converted to a decimal exponential will do as well), and S is the Secret/Private Key
 
 
 
