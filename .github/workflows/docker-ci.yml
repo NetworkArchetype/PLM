@@ -39,6 +39,12 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository_owner }}/plm-cirq:latest
 
+      - name: Smoke test GHCR image
+        run: |
+          echo "Testing GHCR image..."
+          docker pull ghcr.io/${{ github.repository_owner }}/plm-cirq:latest
+          docker run --rm ghcr.io/${{ github.repository_owner }}/plm-cirq:latest python /app/test_repro.py
+
       - name: Login to Docker Hub (optional)
         if: ${{ env.DOCKERHUB_USERNAME && env.DOCKERHUB_TOKEN }}
         uses: docker/login-action@v3
@@ -57,3 +63,19 @@ jobs:
           push: true
           tags: |
             docker.io/${{ secrets.DOCKERHUB_USERNAME }}/plm-cirq:latest
+
+
+# Run repository Python unit tests
+python-tests:
+  runs-on: ubuntu-latest
+  steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+    - name: Install pytest
+      run: pip install pytest
+    - name: Run tests
+      run: pytest -q
+
