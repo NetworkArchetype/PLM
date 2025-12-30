@@ -1,0 +1,45 @@
+{
+  "auto_install": [
+    {
+      "parent": "/ISO/Windows11",
+      "template": [
+        "/ventoy/script/win11_pro_autounattend.xml",
+        "/ventoy/script/win11_pro_autounattend_alt.xml"
+      ],
+      "autosel": 0,
+      "timeout": 0
+    },
+    {
+      "parent": "/ISO/WindowsServer2025",
+      "template": [
+        "/ventoy/script/ws2025_autounattend.xml",
+        "/ventoy/script/ws2025_autounattend_alt.xml"
+      ],
+      "autosel": 0,
+      "timeout": 0
+    },
+    {
+      "parent": "/ISO/UbuntuServer2404",
+      "template": [
+        "/ventoy/script/ubuntu_server_2404_user-data",
+        "/ventoy/script/ubuntu_server_2404_user-data_alt"
+      ],
+      "autosel": 0,
+      "timeout": 0
+    },
+    {
+      "parent": "/ISO/UbuntuDesktop2404",
+      "template": [
+        "/ventoy/script/ubuntu_desktop_2404_user-data",
+        "/ventoy/script/ubuntu_desktop_2404_user-data_alt"
+      ],
+      "autosel": 0,
+      "timeout": 0
+    }
+  ],
+  "menu_class": [
+    { "key": "Windows", "class": "windows" },
+    { "key": "Server", "class": "windows" },
+    { "key": "ubuntu", "class": "ubuntu" }
+  ]
+}
