@@ -1,0 +1,121 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from decimal import Decimal
+from math import tau
+from typing import List, Tuple, Dict, Any, Optional
+
+from .stateful import StatefulPLM
+from .model import plm_secret_value
+
+# Cirq is an optional dependency.
+# Install: pip install cirq
+import cirq
+import sympy
+
+
+@dataclass(frozen=True)
+class QuantumTemporalConfig:
+    """
+    Quantum temporal model configuration.
+
+    We encode a classical PLM time-series S_t into a parametric quantum circuit:
+      theta(t) = scale * (S_t mod 2π)  (or any mapping you choose)
+
+    Then we simulate and measure an observable over time, e.g., <Z> on one qubit.
+
+    This is a "quantum temporal visualization/encoding" of PLM, not a claim
+    of quantum advantage or physical correctness.
+    """
+    scale: float = 1.0
+    shots: int = 2000
+    use_density_matrix: bool = False
+
+
+def _decimal_to_float(d: Decimal) -> float:
+    # Safe-ish conversion; caller controls precision.
+    return float(d)
+
+
+def angle_from_S(S: Decimal, scale: float = 1.0) -> float:
+    """
+    Map S (a Decimal) to an angle in radians in [0, 2π) and scale it.
+    """
+    s = _decimal_to_float(S)
+    # modulo 2π into [0, 2π)
+    base = s % tau
+    return scale * base
+
+
+def build_parametric_circuit() -> Tuple[cirq.Circuit, sympy.Symbol, cirq.Qid]:
+    """
+    Build a simple 1-qubit parametric circuit with a symbolic parameter θ:
+
+      |0> --H-- Rz(θ) --H-- measure
+
+    The expectation of Z after this circuit varies with θ.
+    """
+    q = cirq.LineQubit(0)
+    theta = sympy.Symbol("theta")
+
+    circuit = cirq.Circuit(
+        cirq.H(q),
+        cirq.rz(theta).on(q),
+        cirq.H(q),
+        cirq.measure(q, key="m"),
+    )
+    return circuit, theta, q
+
+
+def simulate_time_series(
+    plm_machine: StatefulPLM,
+    steps: int,
+    cfg: Optional[QuantumTemporalConfig] = None,
+) -> List[Dict[str, Any]]:
+    """
+    Run the stateful PLM machine for `steps`, encode S_t into θ(t),
+    simulate the quantum circuit using Cirq, and return a list of records.
+
+    Each record:
+      {
+        "t": int,
+        "S": str (Decimal string),
+        "theta": float,
+        "p1": float (estimated probability of measuring 1),
+        "expZ": float (estimated <Z> = p0 - p1)
+      }
+    """
+    if cfg is None:
+        cfg = QuantumTemporalConfig()
+
+    circuit, theta_sym, q = build_parametric_circuit()
+    sim = cirq.Simulator()
+
+    out: List[Dict[str, Any]] = []
+
+    for _ in range(steps):
+        S = plm_machine.value()
+        th = angle_from_S(S, scale=cfg.scale)
+
+        resolver = cirq.ParamResolver({str(theta_sym): th})
+
+        # Run with repetitions for empirical probabilities.
+        result = sim.run(circuit, resolver, repetitions=cfg.shots)
+        m = result.measurements["m"].reshape(-1)
+        p1 = float(m.mean())
+        p0 = 1.0 - p1
+        expZ = p0 - p1
+
+        out.append(
+            {
+                "t": plm_machine.state.t,
+                "S": str(S),
+                "theta": th,
+                "p1": p1,
+                "expZ": expZ,
+            }
+        )
+
+        plm_machine.step()
+
+    return out

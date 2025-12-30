@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "plm-formalized"
+version = "0.2.0"
+description = "Formalized PLM (Pi–Lambda–Mu) symbolic model with stateful + quantum temporal extensions."
+readme = "README.md"
+requires-python = ">=3.9"
+license = {file = "LICENSE"}
+authors = [{name = "Your Name"}]
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0"]
+quantum = ["cirq>=1.0"]
+
+[tool.setuptools]
+packages = ["plm_formalized"]
