@@ -16,6 +16,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Debug: show runner env and repository files
+        run: |
+          echo "GITHUB_REF: $GITHUB_REF"
+          echo "GITHUB_SHA: $GITHUB_SHA"
+          echo "RUNNER_OS: $RUNNER_OS"
+          echo "Runner temp: $RUNNER_TEMP"
+          echo "Listing repository root:"
+          ls -la
+          echo "Listing Deploy/docker/plm-cirq:"
+          ls -la Deploy/docker/plm-cirq || true
+          echo "Dockerfile.ci (first 200 lines):"
+          sed -n '1,200p' Deploy/docker/plm-cirq/Dockerfile.ci || true
+          echo "requirements.txt (first 200 lines):"
+          sed -n '1,200p' Deploy/docker/plm-cirq/requirements.txt || true
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
@@ -36,8 +51,18 @@ jobs:
           file: ./Deploy/docker/plm-cirq/Dockerfile.ci
           platforms: linux/amd64
           push: true
+          progress: plain
+          build-args: |
+            PYTHONUNBUFFERED=1
           tags: |
             ghcr.io/${{ github.repository_owner }}/plm-cirq:latest
+
+      - name: Debug: list local Docker images and test image (best-effort)
+        run: |
+          echo "Built images (local):"
+          docker images --format 'table {{.Repository}}:{{.Tag}}\t{{.Size}}' || true
+          echo "Try running the image locally (if present):"
+          docker run --rm ghcr.io/${{ github.repository_owner }}/plm-cirq:latest python /app/test_repro.py || true
 
       - name: Smoke test GHCR image
         run: |
@@ -70,6 +95,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Debug: show Python environment & files
+        run: |
+          echo "Runner info: $RUNNER_OS"
+          python -V
+          pip -V
+          pip list
+          ls -la
+          sed -n '1,200p' pyproject.toml || true
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
