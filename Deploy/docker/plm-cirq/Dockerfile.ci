@@ -7,7 +7,8 @@ RUN pip wheel -r requirements.txt --wheel-dir /wheels
 
 FROM python:3.12-slim
 COPY --from=builder /wheels /wheels
-# Install from local wheel cache to ensure a reproducible build
-RUN pip install --no-index --find-links=/wheels -r /wheels/requirements.txt || pip install --no-index --find-links=/wheels cirq==1.6.1
+# Copy the original requirements file from the builder stage and install from local wheel cache
+COPY --from=builder /src/requirements.txt /requirements.txt
+RUN pip install --no-index --find-links=/wheels -r /requirements.txt
 COPY test_repro.py /app/test_repro.py
 CMD ["python","/app/test_repro.py"]
