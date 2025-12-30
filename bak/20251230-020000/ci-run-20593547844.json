@@ -1,0 +1,12 @@
+{
+  "id": 20593547844,
+  "head_sha": "d986c5bffbf08b7ce458b4ba48eedda62001d87b",
+  "run_number": 6,
+  "status": "completed",
+  "conclusion": "failure",
+  "html_url": "https://github.com/NetworkArchetype/PLM/actions/runs/20593547844",
+  "check_suite_url": "https://api.github.com/repos/NetworkArchetype/PLM/check-suites/53235909476",
+  "jobs_url": "https://api.github.com/repos/NetworkArchetype/PLM/actions/runs/20593547844/jobs",
+  "logs_url": "https://api.github.com/repos/NetworkArchetype/PLM/actions/runs/20593547844/logs",
+  "note": "Run failed during workflow validation (no jobs). Suspected invalid workflow file prior to the latest indentation fix; a new commit with the fix has been pushed. Monitor subsequent runs for status updates."
+}
