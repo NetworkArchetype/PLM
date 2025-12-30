@@ -1,0 +1,11 @@
+Local build / test:
+
+cd plm-formalized
+python -m venv .venv
+source .venv/bin/activate  # (Windows: .venv\Scripts\activate)
+pip install -e ".[dev]"
+pytest
+
+Quantum:
+pip install -e ".[quantum]"
+python scripts/run_quantum_temporal.py
