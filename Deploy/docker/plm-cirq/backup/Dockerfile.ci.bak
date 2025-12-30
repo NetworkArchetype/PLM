@@ -1,0 +1,11 @@
+# Multi-stage, reproducible build for cirq image
+FROM python:3.12-slim AS builder
+WORKDIR /src
+COPY requirements.txt ./
+RUN pip wheel --no-deps --wheel-dir /wheels -r requirements.txt
+
+FROM python:3.12-slim
+COPY --from=builder /wheels /wheels
+RUN pip install --no-index --find-links=/wheels cirq==1.6.1
+COPY test_repro.py /app/test_repro.py
+CMD ["python","/app/test_repro.py"]
