@@ -1,0 +1,10 @@
+{
+  "run_id": 20593576670,
+  "jobs_summary": [
+    {
+      "name": "build-and-push",
+      "conclusion": "failure",
+      "failed_step": "Build and push to GHCR"
+    }
+  ]
+}

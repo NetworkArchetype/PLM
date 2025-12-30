@@ -1,0 +1,15 @@
+{
+  "run_id": 20593569025,
+  "jobs_summary": [
+    {
+      "name": "python-tests",
+      "conclusion": "failure",
+      "failed_step": "Run tests"
+    },
+    {
+      "name": "build-and-push",
+      "conclusion": "failure",
+      "failed_step": "Build and push to GHCR"
+    }
+  ]
+}
