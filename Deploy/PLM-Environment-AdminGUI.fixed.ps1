@@ -44,6 +44,75 @@ function Log([string]$msg) {
 function Exists-Cmd([string]$name) { return [bool](Get-Command $name -ErrorAction SilentlyContinue) }
 function Winget-Ok { Exists-Cmd "winget" }
 
+# GitHub CLI helpers
+function Get-GhPath {
+  try {
+    $c = Get-Command gh -ErrorAction SilentlyContinue
+    if ($c) { return $c.Path }
+    # Try common install locations
+    $candidates = @(
+      "$env:ProgramFiles\GitHub CLI\bin\gh.exe",
+      "$env:LOCALAPPDATA\Programs\GitHub CLI\bin\gh.exe",
+      "$env:ProgramFiles(x86)\GitHub CLI\bin\gh.exe"
+    )
+    foreach ($p in $candidates) { if (Test-Path $p) { $dir = Split-Path $p -Parent; $env:Path = "$env:Path;$dir"; return $p } }
+    return $null
+  } catch { return $null }
+}
+
+function Exists-Gh { return [bool](Get-GhPath) }
+
+function Gh-AuthStatus {
+  $gh = Get-GhPath
+  if (-not $gh) { return $false }
+  try {
+    & $gh auth status --hostname github.com > $null 2>&1
+    return ($LASTEXITCODE -eq 0)
+  } catch { return $false }
+}
+
+function Get-GhUser {
+  $gh = Get-GhPath
+  if (-not $gh) { return $null }
+  try {
+    $user = & $gh api user --jq .login 2>$null
+    return $user.Trim()
+  } catch { return $null }
+}
+
+function Do-GhInstall {
+  if (-not (Winget-Ok)) { Log "winget missing; cannot install GitHub CLI."; [System.Windows.Forms.MessageBox]::Show("winget not found. Please install GitHub CLI manually from https://cli.github.com/","Install GH",[System.Windows.Forms.MessageBoxButtons]::OK,[System.Windows.Forms.MessageBoxIcon]::Warning) | Out-Null; return }
+  try {
+    Log "Installing GitHub CLI via winget..."
+    winget install --id GitHub.cli -e --accept-package-agreements --accept-source-agreements | Out-Host
+    Start-Sleep -Seconds 2
+    $gh = Get-GhPath
+    if ($gh) { Log "GitHub CLI installed: $gh"; [System.Windows.Forms.MessageBox]::Show("GitHub CLI installed. Click 'GitHub Login' to authenticate.","Install GH",[System.Windows.Forms.MessageBoxButtons]::OK,[System.Windows.Forms.MessageBoxIcon]::Information) | Out-Null } else { Log "GitHub CLI install attempted but gh not found on PATH."; [System.Windows.Forms.MessageBox]::Show("GitHub CLI installed but not found in PATH. You may need to restart your shell.","Install GH",[System.Windows.Forms.MessageBoxButtons]::OK,[System.Windows.Forms.MessageBoxIcon]::Warning) | Out-Null }
+  } catch { Log "GitHub CLI install failed: $($_.Exception.Message)"; [System.Windows.Forms.MessageBox]::Show("GitHub CLI installation failed. Install manually from https://cli.github.com/","Install GH",[System.Windows.Forms.MessageBoxButtons]::OK,[System.Windows.Forms.MessageBoxIcon]::Error) | Out-Null }
+}
+
+function Do-GhLogin {
+  $gh = Get-GhPath
+  if (-not $gh) {
+    $res = [System.Windows.Forms.MessageBox]::Show("GitHub CLI is not installed. Install it now via winget?","GitHub CLI missing",[System.Windows.Forms.MessageBoxButtons]::YesNo,[System.Windows.Forms.MessageBoxIcon]::Question)
+    if ($res -eq [System.Windows.Forms.DialogResult]::Yes) { Do-GhInstall; Start-Sleep -Seconds 2 }
+    $gh = Get-GhPath
+    if (-not $gh) { [System.Windows.Forms.MessageBox]::Show("Install failed or not available. Please install manually: https://cli.github.com/","Install GH", [System.Windows.Forms.MessageBoxButtons]::OK,[System.Windows.Forms.MessageBoxIcon]::Warning) | Out-Null; return }
+  }
+
+  if (Gh-AuthStatus) { [System.Windows.Forms.MessageBox]::Show("GitHub CLI already authenticated.","GitHub Login",[System.Windows.Forms.MessageBoxButtons]::OK,[System.Windows.Forms.MessageBoxIcon]::Information) | Out-Null; return }
+
+  # Run interactive login in a normal PowerShell (not elevated) because gh stores credentials per-user
+  Start-Process powershell.exe -ArgumentList "-NoExit","-Command","gh auth login --web" | Out-Null
+  Log "Launched GitHub login (gh auth login --web) in PowerShell (interactive)."
+}
+
+function Update-GhStatusLabel {
+  if (-not $script:lblGitHubStatus) { return }
+  if (-not (Exists-Gh)) { $script:lblGitHubStatus.ForeColor = Status-Color $false; $script:lblGitHubStatus.Text = "Not installed"; return }
+  if (Gh-AuthStatus) { $u = Get-GhUser; if ($u) { $script:lblGitHubStatus.ForeColor = Status-Color $true; $script:lblGitHubStatus.Text = "Logged in: $u" } else { $script:lblGitHubStatus.ForeColor = Status-Color $true; $script:lblGitHubStatus.Text = "Authenticated" } } else { $script:lblGitHubStatus.ForeColor = Status-Color $false; $script:lblGitHubStatus.Text = "Not logged in" }
+}
+
 function Winget-Install([string]$Id) {
   if (-not (Winget-Ok)) { throw "winget not found (install App Installer from Microsoft Store)." }
   winget install --id $Id -e --silent --accept-package-agreements --accept-source-agreements | Out-Host
