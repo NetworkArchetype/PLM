@@ -1,0 +1,74 @@
+# PLM Formalized
+
+This repository repackages and formalizes the **PLM (Pi–Lambda–Mu)** symbolic model into a small, testable library.
+
+---
+
+## Symbolic definition
+
+Baseline PLM ratio:
+
+PLM(λ, μ) := (π · λ) / μ
+
+Generalized scenario form:
+
+S = ((π · Y)(λ · X)) / (μ · C)
+
+Equivalently:
+
+S = (π · λ / μ) · (X · Y / C)
+
+Where:
+
+- Y : integer derived from a hex hash string (e.g., public key hash)
+- X : application-chosen scaling factor / nonce / session-derived integer
+- C : positive integer derived from (block_size + crc_decimal)
+- S : numeric output of the transform
+
+IMPORTANT:
+This repository provides a deterministic numeric transform.
+It does NOT claim cryptographic security.
+
+---
+
+## Python package
+
+Install locally:
+
+pip install -e .
+
+Usage:
+
+from decimal import Decimal
+from plm_formalized import PLMInputs, plm_ratio, plm_secret_value
+
+inp = PLMInputs(
+    pi=Decimal("3.14159265358979323846264338327950288419716939937510"),
+    lam=Decimal("1.61803398874989484820458683436563811772030917980576"),
+    mu=Decimal("1.0"),
+    x=123456789,
+    public_hash_hex="a3f1c9",
+    block_size=4096,
+    crc_decimal=987654321,
+)
+
+print(plm_ratio(inp.pi, inp.lam, inp.mu))
+print(plm_secret_value(inp))
+
+---
+
+## Tests
+
+pytest
+
+---
+
+## Ruby reference
+
+A Ruby implementation mirroring the Python logic is included in ruby/plm.rb.
+
+---
+
+## License
+
+Apache 2.0 License
