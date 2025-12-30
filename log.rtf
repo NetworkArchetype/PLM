@@ -1,0 +1,30 @@
+{\rtf1\ansi\deff0
+{\b PLM CI & Workflow Transcript}\par
+\par
+{\b Date:} 2025-12-30\par
+\par
+{\b Summary of actions performed:}\par
+- Fixed PowerShell parser errors in `Deploy/PLM-Environment-AdminGUI.ps1` and validated GUI runs locally.\par
+- Implemented reproducible Docker build for Cirq (`Deploy/docker/plm-cirq/Dockerfile.ci`) and smoke test script `test_repro.py`.\par
+- Added CI workflow `.github/workflows/docker-ci.yml` to build & push GHCR images, smoke-test, and run Python tests.\par
+- Iterated on workflow fixes: addressed YAML conditionals, moved secrets to job env, fixed indentation, and set build progress to plain for triage.\par
+- Added detailed debug steps and artifact uploads for both `build-and-push` and `python-tests` jobs (artifacts uploaded as `*-logs-${{ github.run_id }}`).\par
+- Created one-time debug tarball `bak/20251230-030000/plm-ci-debug-20251230-030000.tar.gz` and added randomized uploader scripts in `scripts/`.\par
+- Attempted GitHub release upload workflow; installed GitHub CLI locally via winget and added GUI helpers for GitHub Login.\par
+\par
+{\b Artifacts & saved captures:}\par
+- `bak/20251230-020000/transcript-20251230-020000.rtf` (previous transcript snapshot)\par
+- `bak/20251230-020000/ci-jobs-20593569025.json`\par
+- `bak/20251230-020000/ci-jobs-20593576670.json`\par
+- `bak/20251230-030000/plm-ci-debug-20251230-030000.tar.gz`\par
+\par
+{\b Recent commits:}\par
+- d986c5b, 085832b, 42bf16f, 5ef288b, 0ab97ff, e0bbb41 (see repo history)\par
+\par
+{\b Next steps:}\par
+1. Monitor CI runs and download/upload artifact logs to `bak/` when available.\par
+2. Use `scripts/upload_random_artifact.*` for optional releases/uploads (probabilistic).\par
+3. Optionally trigger a release-upload workflow or use `gh auth login` and `gh release upload` to upload the tarball to `v1.0`.\par
+\par
+{\b Note:} This log was generated automatically from the interactive session and includes high-level actions and artifact references only.\par
+}
