@@ -1,0 +1,23 @@
+{\rtf1\ansi\deff0
+{\fonttbl{\f0 Consolas;}}
+\pard\f0\fs20 **PLM Repository - CI & Admin GUI Session Transcript**\par
+\par
+Timestamp: 2025-12-30\par
+Repository: NetworkArchetype/PLM\par
+Branch: fix/admin-gui-parse-errors\par
+\par
+--- Conversation Summary (abridged) ---\par
+- Fixed PowerShell parser errors in `Deploy/PLM-Environment-AdminGUI.ps1` (normalized hyphens, fixed Add-StatusRow calls, made UI labels script scoped, improved Log()).\par
+- Built reproducible `plm-cirq` Docker image using `Dockerfile.ci` (pinned cirq==1.6.1), added `test_repro.py` smoke test.\par
+- Merged `fix/admin-gui-parse-errors` into `master` after resolving OneDrive file lock issues.\par
+- Iteratively fixed GitHub Actions workflow `.github/workflows/docker-ci.yml` to avoid using `secrets` in step `if` expressions by mapping secrets to job-level env vars and updated conditional checks to reference `env`.\par
+- Added smoke test to pull/pull the built GHCR image and run `python /app/test_repro.py` and a `python-tests` job running `pytest`.\par
+- Created backups of modified files under `bak/<timestamp>/`.\par
+- Local build of Dockerfile.ci succeeded and printed "Hello from Cirq in image (repro): 1.6.1"; interactive shell validated.\par
+- Current next step: Monitor GitHub Actions runs and iterate to ensure the workflow completes successfully.\par
+\par
+--- Detailed Notes ---\par
+(Full session notes / analysis / events follow - truncated for brevity in this RTF; full raw transcript is available on request.)\par
+\par
+--- End Transcript ---\par
+}
