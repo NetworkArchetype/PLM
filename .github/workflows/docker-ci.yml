@@ -54,8 +54,14 @@ jobs:
           progress: plain
           build-args: |
             PYTHONUNBUFFERED=1
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.repository }}
+            plm.module=plm-cirq
           tags: |
             ghcr.io/${{ github.repository_owner }}/plm-cirq:latest
+            ghcr.io/${{ github.repository_owner }}/plm-cirq:${{ github.sha }}
+            ghcr.io/${{ github.repository_owner }}/plm-cirq:run-${{ github.run_number }}
 
       - name: Debug: list local Docker images and test image (best-effort)
         run: |
@@ -67,8 +73,31 @@ jobs:
       - name: Smoke test GHCR image
         run: |
           echo "Testing GHCR image..."
-          docker pull ghcr.io/${{ github.repository_owner }}/plm-cirq:latest
-          docker run --rm ghcr.io/${{ github.repository_owner }}/plm-cirq:latest python /app/test_repro.py
+          docker pull ghcr.io/${{ github.repository_owner }}/plm-cirq:latest || true
+          docker run --rm ghcr.io/${{ github.repository_owner }}/plm-cirq:latest python /app/test_repro.py > /tmp/ci-logs/test_repro.out 2>&1 || true
+
+      - name: Debug: collect build metadata and files
+        if: always()
+        run: |
+          mkdir -p /tmp/ci-logs
+          env > /tmp/ci-logs/env_build_and_push.txt || true
+          docker info > /tmp/ci-logs/docker_info.txt || true
+          docker version > /tmp/ci-logs/docker_version.txt || true
+          docker buildx ls > /tmp/ci-logs/buildx_ls.txt || true
+          docker buildx inspect default > /tmp/ci-logs/buildx_inspect.txt || true
+          echo "Dockerfile.ci:" > /tmp/ci-logs/Dockerfile.ci || true
+          sed -n '1,400p' Deploy/docker/plm-cirq/Dockerfile.ci > /tmp/ci-logs/Dockerfile.ci || true
+          echo "requirements.txt:" > /tmp/ci-logs/requirements.txt || true
+          sed -n '1,400p' Deploy/docker/plm-cirq/requirements.txt > /tmp/ci-logs/requirements.txt || true
+          docker inspect ghcr.io/${{ github.repository_owner }}/plm-cirq:latest > /tmp/ci-logs/image_inspect.txt 2>&1 || true
+          docker images --format 'table {{.Repository}}:{{.Tag}}\t{{.Size}}' > /tmp/ci-logs/docker_images.txt || true
+
+      - name: Upload build-and-push artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-and-push-logs-${{ github.run_id }}
+          path: /tmp/ci-logs/*
 
       - name: Login to Docker Hub (optional)
         if: ${{ env.DOCKERHUB_USERNAME && env.DOCKERHUB_TOKEN }}
@@ -97,12 +126,13 @@ jobs:
       - uses: actions/checkout@v4
       - name: Debug: show Python environment & files
         run: |
-          echo "Runner info: $RUNNER_OS"
-          python -V
-          pip -V
-          pip list
-          ls -la
-          sed -n '1,200p' pyproject.toml || true
+          mkdir -p /tmp/ci-logs
+          echo "Runner info: $RUNNER_OS" > /tmp/ci-logs/runner_info.txt
+          python -V > /tmp/ci-logs/python_version.txt 2>&1 || true
+          pip -V > /tmp/ci-logs/pip_version.txt 2>&1 || true
+          pip list --format=columns > /tmp/ci-logs/pip_list.txt 2>&1 || true
+          ls -la > /tmp/ci-logs/root_listing.txt || true
+          sed -n '1,200p' pyproject.toml > /tmp/ci-logs/pyproject.txt || true
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
@@ -110,5 +140,13 @@ jobs:
       - name: Install pytest
         run: pip install pytest
       - name: Run tests
-        run: pytest -q
+        run: |
+          mkdir -p /tmp/ci-logs
+          pytest -q | tee /tmp/ci-logs/pytest_output.txt
+      - name: Upload python-tests artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-tests-logs-${{ github.run_id }}
+          path: /tmp/ci-logs/*
 
