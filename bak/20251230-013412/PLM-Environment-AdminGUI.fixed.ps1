@@ -26,6 +26,29 @@ Ensure-Admin
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
+function Add-StatusRow {
+  param(
+    $parent,
+    $label,
+    $y
+  )
+  $lbl = New-Object System.Windows.Forms.Label
+  $lbl.Text = $label
+  $lbl.Location = New-Object System.Drawing.Point(16, $y)
+  $lbl.Size = New-Object System.Drawing.Size(210, 22)
+  $lbl.Font = $font
+  $parent.Controls.Add($lbl)
+
+  $val = New-Object System.Windows.Forms.Label
+  $val.Text = "—"
+  $val.Location = New-Object System.Drawing.Point(240, $y)
+  $val.Size = New-Object System.Drawing.Size(240, 22)
+  $val.Font = $font
+  $parent.Controls.Add($val)
+
+  return $val
+}
+
 # -----------------------------
 # Logging (defined after UI textbox exists, but keep helper)
 # -----------------------------
@@ -345,33 +368,16 @@ $grpStatus.Font = $font
 $grpStatus.Location = New-Object System.Drawing.Point(12, 10)
 $grpStatus.Size = New-Object System.Drawing.Size(520, 280)
 $pTop.Controls.Add($grpStatus)
-function Add-StatusRow($parent, $label, $y, [ref]$valueLabel) {
-  $lbl = New-Object System.Windows.Forms.Label
-  $lbl.Text = $label
-  $lbl.Location = New-Object System.Drawing.Point(16, $y)
-  $lbl.Size = New-Object System.Drawing.Size(210, 22)
-  $lbl.Font = $font
-  $parent.Controls.Add($lbl)
-
-  $val = New-Object System.Windows.Forms.Label
-  $val.Text = "—"
-  $val.Location = New-Object System.Drawing.Point(240, $y)
-  $val.Size = New-Object System.Drawing.Size(240, 22)
-  $val.Font = $font
-  $parent.Controls.Add($val)
-
-  $valueLabel.Value = $val
-}
 
 # IMPORTANT: keep each call on ONE LINE (your original parse error)
-Add-StatusRow $grpStatus "winget"               30 ([ref]$script:lblWingetValue)
-Add-StatusRow $grpStatus "Git"                  55 ([ref]$script:lblGitValue)
-Add-StatusRow $grpStatus "Python"               80 ([ref]$script:lblPythonValue)
-Add-StatusRow $grpStatus "VS Code (any version)"105 ([ref]$script:lblVSCodeValue)
-Add-StatusRow $grpStatus "Windows Terminal"     130 ([ref]$script:lblWTValue)
-Add-StatusRow $grpStatus "WSL2 Features"        155 ([ref]$script:lblWSLFeatValue)
-Add-StatusRow $grpStatus "Ubuntu (WSL distro)"  180 ([ref]$script:lblUbuntuValue)
-Add-StatusRow $grpStatus "Docker Desktop"       205 ([ref]$script:lblDockerValue)
+$script:lblWingetValue = Add-StatusRow -parent $grpStatus -label "winget" -y 30
+$script:lblGitValue = Add-StatusRow -parent $grpStatus -label "Git" -y 55
+$script:lblPythonValue = Add-StatusRow -parent $grpStatus -label "Python" -y 80
+$script:lblVSCodeValue = Add-StatusRow -parent $grpStatus -label "VS Code (any version)" -y 105
+$script:lblWTValue = Add-StatusRow -parent $grpStatus -label "Windows Terminal" -y 130
+$script:lblWSLFeatValue = Add-StatusRow -parent $grpStatus -label "WSL2 Features" -y 155
+$script:lblUbuntuValue = Add-StatusRow -parent $grpStatus -label "Ubuntu (WSL distro)" -y 180
+$script:lblDockerValue = Add-StatusRow -parent $grpStatus -label "Docker Desktop" -y 205
 
 # Nvidia row (extra)
 $lblNvidiaTitle = New-Object System.Windows.Forms.Label
@@ -404,7 +410,7 @@ $script:lblCUDAValue.Font = $font
 $grpStatus.Controls.Add($script:lblCUDAValue)
 
 $grpActions = New-Object System.Windows.Forms.GroupBox
-$grpActions.Text = "Actions & Modes"
+$grpActions.Text = "Actions and Modes"
 $grpActions.Font = $font
 $grpActions.Location = New-Object System.Drawing.Point(548, 10)
 $grpActions.Size = New-Object System.Drawing.Size(520, 240)
