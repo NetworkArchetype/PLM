@@ -23,7 +23,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Debug: show runner env and repository files
+      - name: "Debug: show runner env and repository files"
         run: |
           echo "GITHUB_REF: $GITHUB_REF"
           echo "GITHUB_SHA: $GITHUB_SHA"
@@ -70,7 +70,7 @@ jobs:
             ghcr.io/${{ github.repository_owner }}/plm-cirq:${{ github.sha }}
             ghcr.io/${{ github.repository_owner }}/plm-cirq:run-${{ github.run_number }}
 
-      - name: Debug: list local Docker images and test image (best-effort)
+      - name: "Debug: list local Docker images and test image (best-effort)"
         run: |
           echo "Built images (local):"
           docker images --format 'table {{.Repository}}:{{.Tag}}\t{{.Size}}' || true
@@ -83,7 +83,7 @@ jobs:
           docker pull ghcr.io/${{ github.repository_owner }}/plm-cirq:latest || true
           docker run --rm ghcr.io/${{ github.repository_owner }}/plm-cirq:latest python /app/test_repro.py > /tmp/ci-logs/test_repro.out 2>&1 || true
 
-      - name: Debug: collect build metadata and files
+      - name: "Debug: collect build metadata and files"
         if: always()
         run: |
           mkdir -p /tmp/ci-logs
