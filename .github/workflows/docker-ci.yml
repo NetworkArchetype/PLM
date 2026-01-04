@@ -1,4 +1,4 @@
-name: CI Docker build & push
+name: "CI Docker build & push"
 
 # Triggers are temporarily disabled to stop automated runs.
 # To re-enable, change 'on' back to the desired events (push, pull_request, schedule, etc.).
