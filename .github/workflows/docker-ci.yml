@@ -1,8 +1,14 @@
 name: CI Docker build & push
 
+# Triggers are temporarily disabled to stop automated runs.
+# To re-enable, change 'on' back to the desired events (push, pull_request, schedule, etc.).
 on:
-  push:
-    branches: [ master, main ]
+  workflow_dispatch: {}
+  # push:
+  #   branches: [ master, main ]
+  # pull_request: {}
+  # schedule:
+  #   - cron: '0 0 * * *'
 
 jobs:
   build-and-push:
