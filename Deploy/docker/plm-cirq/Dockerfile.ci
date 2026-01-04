@@ -1,6 +1,8 @@
 # Multi-stage, reproducible build for cirq image
 FROM python:3.12-slim AS builder
 WORKDIR /src
+# Install build dependencies
+RUN apt-get update && apt-get install -y build-essential && rm -rf /var/lib/apt/lists/*
 COPY requirements.txt ./
 # Build wheels for all dependencies into /wheels so the final image can install without network
 RUN pip wheel -r requirements.txt --wheel-dir /wheels
