@@ -58,7 +58,6 @@ jobs:
           file: ./Deploy/docker/plm-cirq/Dockerfile.ci
           platforms: linux/amd64
           push: true
-          progress: plain
           build-args: |
             PYTHONUNBUFFERED=1
           labels: |
@@ -66,9 +65,9 @@ jobs:
             org.opencontainers.image.source=${{ github.repository }}
             plm.module=plm-cirq
           tags: |
-            ghcr.io/${{ github.repository_owner }}/plm-cirq:latest
-            ghcr.io/${{ github.repository_owner }}/plm-cirq:${{ github.sha }}
-            ghcr.io/${{ github.repository_owner }}/plm-cirq:run-${{ github.run_number }}
+            ghcr.io/${{ toLower(github.repository_owner) }}/plm-cirq:latest
+            ghcr.io/${{ toLower(github.repository_owner) }}/plm-cirq:${{ github.sha }}
+            ghcr.io/${{ toLower(github.repository_owner) }}/plm-cirq:run-${{ github.run_number }}
 
       - name: "Debug: list local Docker images and test image (best-effort)"
         run: |
