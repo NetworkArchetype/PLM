@@ -1,0 +1,159 @@
+name: "CI Docker build & push"
+
+# Triggers are temporarily disabled to stop automated runs.
+# To re-enable, change 'on' back to the desired events (push, pull_request, schedule, etc.).
+# touch: 2026-01-03T00:00:00Z
+on:
+  workflow_dispatch: {}
+  # push:
+  #   branches: [ master, main ]
+  # pull_request: {}
+  # schedule:
+  #   - cron: '0 0 * * *'
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    env:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Debug: show runner env and repository files
+        run: |
+          echo "GITHUB_REF: $GITHUB_REF"
+          echo "GITHUB_SHA: $GITHUB_SHA"
+          echo "RUNNER_OS: $RUNNER_OS"
+          echo "Runner temp: $RUNNER_TEMP"
+          echo "Listing repository root:"
+          ls -la
+          echo "Listing Deploy/docker/plm-cirq:"
+          ls -la Deploy/docker/plm-cirq || true
+          echo "Dockerfile.ci (first 200 lines):"
+          sed -n '1,200p' Deploy/docker/plm-cirq/Dockerfile.ci || true
+          echo "requirements.txt (first 200 lines):"
+          sed -n '1,200p' Deploy/docker/plm-cirq/requirements.txt || true
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push to GHCR
+        uses: docker/build-push-action@v5
+        with:
+          context: ./Deploy/docker/plm-cirq
+          file: ./Deploy/docker/plm-cirq/Dockerfile.ci
+          platforms: linux/amd64
+          push: true
+          progress: plain
+          build-args: |
+            PYTHONUNBUFFERED=1
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.repository }}
+            plm.module=plm-cirq
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/plm-cirq:latest
+            ghcr.io/${{ github.repository_owner }}/plm-cirq:${{ github.sha }}
+            ghcr.io/${{ github.repository_owner }}/plm-cirq:run-${{ github.run_number }}
+
+      - name: Debug: list local Docker images and test image (best-effort)
+        run: |
+          echo "Built images (local):"
+          docker images --format 'table {{.Repository}}:{{.Tag}}\t{{.Size}}' || true
+          echo "Try running the image locally (if present):"
+          docker run --rm ghcr.io/${{ github.repository_owner }}/plm-cirq:latest python /app/test_repro.py || true
+
+      - name: Smoke test GHCR image
+        run: |
+          echo "Testing GHCR image..."
+          docker pull ghcr.io/${{ github.repository_owner }}/plm-cirq:latest || true
+          docker run --rm ghcr.io/${{ github.repository_owner }}/plm-cirq:latest python /app/test_repro.py > /tmp/ci-logs/test_repro.out 2>&1 || true
+
+      - name: Debug: collect build metadata and files
+        if: always()
+        run: |
+          mkdir -p /tmp/ci-logs
+          env > /tmp/ci-logs/env_build_and_push.txt || true
+          docker info > /tmp/ci-logs/docker_info.txt || true
+          docker version > /tmp/ci-logs/docker_version.txt || true
+          docker buildx ls > /tmp/ci-logs/buildx_ls.txt || true
+          docker buildx inspect default > /tmp/ci-logs/buildx_inspect.txt || true
+          echo "Dockerfile.ci:" > /tmp/ci-logs/Dockerfile.ci || true
+          sed -n '1,400p' Deploy/docker/plm-cirq/Dockerfile.ci > /tmp/ci-logs/Dockerfile.ci || true
+          echo "requirements.txt:" > /tmp/ci-logs/requirements.txt || true
+          sed -n '1,400p' Deploy/docker/plm-cirq/requirements.txt > /tmp/ci-logs/requirements.txt || true
+          docker inspect ghcr.io/${{ github.repository_owner }}/plm-cirq:latest > /tmp/ci-logs/image_inspect.txt 2>&1 || true
+          docker images --format 'table {{.Repository}}:{{.Tag}}\t{{.Size}}' > /tmp/ci-logs/docker_images.txt || true
+
+      - name: Upload build-and-push artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-and-push-logs-${{ github.run_id }}
+          path: /tmp/ci-logs/*
+
+      - name: Login to Docker Hub (optional)
+        if: ${{ env.DOCKERHUB_USERNAME && env.DOCKERHUB_TOKEN }}
+        uses: docker/login-action@v3
+        with:
+          registry: docker.io
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push to Docker Hub (optional)
+        if: ${{ env.DOCKERHUB_USERNAME && env.DOCKERHUB_TOKEN }}
+        uses: docker/build-push-action@v5
+        with:
+          context: ./Deploy/docker/plm-cirq
+          file: ./Deploy/docker/plm-cirq/Dockerfile.ci
+          platforms: linux/amd64
+          push: true
+          tags: |
+            docker.io/${{ secrets.DOCKERHUB_USERNAME }}/plm-cirq:latest
+
+
+  # Run repository Python unit tests
+  python-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Debug: show Python environment & files
+        run: |
+          mkdir -p /tmp/ci-logs
+          echo "Runner info: $RUNNER_OS" > /tmp/ci-logs/runner_info.txt
+          python -V > /tmp/ci-logs/python_version.txt 2>&1 || true
+          pip -V > /tmp/ci-logs/pip_version.txt 2>&1 || true
+          pip list --format=columns > /tmp/ci-logs/pip_list.txt 2>&1 || true
+          ls -la > /tmp/ci-logs/root_listing.txt || true
+          sed -n '1,200p' pyproject.toml > /tmp/ci-logs/pyproject.txt || true
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+      - name: Install pytest
+        run: pip install pytest
+      - name: Run tests
+        run: |
+          mkdir -p /tmp/ci-logs
+          pytest -q | tee /tmp/ci-logs/pytest_output.txt
+      - name: Upload python-tests artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-tests-logs-${{ github.run_id }}
+          path: /tmp/ci-logs/*
+
