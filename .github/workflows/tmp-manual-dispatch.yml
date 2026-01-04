@@ -1,0 +1,22 @@
+name: tmp-manual-dispatch
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Smoke echo
+        run: |
+          echo "Temporary dispatch workflow executed"
+          echo "run-id: $GITHUB_RUN_ID" > /tmp/tmp-manual-dispatch.out
+
+      - name: Upload logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: tmp-manual-dispatch-logs-${{ github.run_id }}
+          path: /tmp/tmp-manual-dispatch.out
