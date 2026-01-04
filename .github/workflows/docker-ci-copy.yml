@@ -51,6 +51,16 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Compute GHCR tags
+        id: make_tags
+        run: |
+          owner=$(echo "${GITHUB_REPOSITORY}" | cut -d'/' -f1 | tr '[:upper:]' '[:lower:]')
+          echo "tags<<EOF" >> $GITHUB_OUTPUT
+          echo "ghcr.io/${owner}/plm-cirq:latest" >> $GITHUB_OUTPUT
+          echo "ghcr.io/${owner}/plm-cirq:${GITHUB_SHA}" >> $GITHUB_OUTPUT
+          echo "ghcr.io/${owner}/plm-cirq:run-${GITHUB_RUN_NUMBER}" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
       - name: Build and push to GHCR
         uses: docker/build-push-action@v5
         with:
@@ -64,10 +74,7 @@ jobs:
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.source=${{ github.repository }}
             plm.module=plm-cirq
-          tags: |
-            ghcr.io/${{ toLower(github.repository_owner) }}/plm-cirq:latest
-            ghcr.io/${{ toLower(github.repository_owner) }}/plm-cirq:${{ github.sha }}
-            ghcr.io/${{ toLower(github.repository_owner) }}/plm-cirq:run-${{ github.run_number }}
+          tags: ${{ steps.make_tags.outputs.tags }}
 
       - name: "Debug: list local Docker images and test image (best-effort)"
         run: |
