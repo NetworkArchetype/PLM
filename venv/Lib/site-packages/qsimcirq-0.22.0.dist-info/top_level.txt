@@ -1,0 +1,9 @@
+qsimcirq
+qsimcirq/qsim_avx2
+qsimcirq/qsim_avx512
+qsimcirq/qsim_basic
+qsimcirq/qsim_cuda
+qsimcirq/qsim_custatevec
+qsimcirq/qsim_decide
+qsimcirq/qsim_hip
+qsimcirq/qsim_sse

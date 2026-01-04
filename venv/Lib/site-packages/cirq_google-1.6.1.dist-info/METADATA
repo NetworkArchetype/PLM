@@ -1,0 +1,123 @@
+Metadata-Version: 2.4
+Name: cirq-google
+Version: 1.6.1
+Summary: The Cirq module that provides tools and access to the Google Quantum Computing Service
+Home-page: http://github.com/quantumlib/cirq
+Author: The Cirq Developers
+Author-email: cirq-dev@googlegroups.com
+Maintainer: Google Quantum AI open-source maintainers
+Maintainer-email: quantum-oss-maintainers@google.com
+License: Apache 2
+Keywords: algorithms,api,cirq,google,google quantum,nisq,python,quantum,quantum algorithms,quantum circuit,quantum circuit simulator,quantum computer simulator,quantum computing,quantum development kit,quantum information,quantum programming,quantum programming language,quantum simulation,sdk,simulation
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Education
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Operating System :: MacOS :: MacOS X
+Classifier: Operating System :: Microsoft :: Windows
+Classifier: Operating System :: POSIX :: Linux
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Scientific/Engineering :: Quantum Computing
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Typing :: Typed
+Requires-Python: >=3.11.0
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: google-api-core[grpc]~=2.22
+Requires-Dist: proto-plus~=1.25
+Requires-Dist: protobuf<6.0dev,>=5.26.1
+Requires-Dist: typedunits
+Requires-Dist: cirq-core==1.6.1
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: keywords
+Dynamic: license
+Dynamic: license-file
+Dynamic: maintainer
+Dynamic: maintainer-email
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+<div align="center">
+<img width="220px" alt="Cirq logo"
+src="https://raw.githubusercontent.com/quantumlib/Cirq/refs/heads/main/docs/images/Cirq_logo_color.svg">
+</div>
+
+# cirq-google
+
+This is the Cirq-Google integration module. It provides an interface to
+Google's [Quantum Computing
+Service](https://quantumai.google/cirq/google/concepts), and also contains
+additional tools for calibration and characterization of Google's quantum
+hardware devices.
+
+| Please note!         |
+|:--------------------:|
+| Google's quantum hardware is currently available only to authorized partners. Access requires an application, usually with a Google sponsor.|
+
+[Cirq] is a Python package for writing, manipulating, and running [quantum
+circuits](https://en.wikipedia.org/wiki/Quantum_circuit) on quantum computers
+and simulators. Cirq provides useful abstractions for dealing with today’s
+[noisy intermediate-scale quantum](https://arxiv.org/abs/1801.00862) (NISQ)
+computers, where the details of quantum hardware are vital to achieving
+state-of-the-art results. For more information about Cirq, please visit the
+[Cirq documentation site].
+
+[Cirq]: https://github.com/quantumlib/cirq
+[Cirq documentation site]: https://quantumai.google/cirq
+
+## Installation
+
+This module is built on top of [Cirq]; installing this module will
+automatically install `cirq-core` and other dependencies. There are two
+installation options for the `cirq-google` module:
+
+*   To install the stable version of `cirq-google`, use
+
+    ```shell
+    pip install cirq-google
+    ```
+
+*   To install the latest pre-release version of `cirq-google`, use
+
+    ```shell
+    pip install --upgrade cirq-google~=1.0.dev
+    ```
+
+    (The `~=` has a special meaning to `pip` of selecting the latest version
+    compatible with the `1.*` and `dev` in the name. Despite appearances,
+    this will not install an old version 1.0 release!)
+
+If you would like to install Cirq with all the optional modules, not just
+`cirq-google`, then instead of the above commands, use `pip install cirq` for
+the stable release or `pip install --upgrade cirq~=1.0.dev` for the latest pre-release
+version.
+
+## Documentation
+
+To get started with using Google quantum computers through Cirq, please refer to
+the following documentation:
+
+*   [Access and authentication](https://quantumai.google/cirq/google/access).
+*   [Getting started
+    guide](https://quantumai.google/cirq/tutorials/google/start).
+
+To get started with using Cirq in general, please refer to the [Cirq
+documentation site].
+
+For more information about getting help, reporting bugs, and other matters
+related to Cirq and the Cirq-Core integration module, please visit the [Cirq
+repository on GitHub](https://github.com/quantumlib/Cirq).
+
+## Disclaimer
+
+Cirq is not an official Google product. Copyright 2019 The Cirq Developers.

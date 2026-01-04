@@ -1,0 +1,346 @@
+# Copyright 2018 The Cirq Developers
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+from __future__ import annotations
+
+import abc
+import functools
+import weakref
+from typing import Any, Iterable, Sequence, TYPE_CHECKING
+
+from typing_extensions import Self
+
+from cirq import ops, protocols
+
+if TYPE_CHECKING:
+    import cirq
+
+
+@functools.total_ordering
+class _BaseLineQid(ops.Qid):
+    """The base class for `LineQid` and `LineQubit`."""
+
+    _x: int
+    _dimension: int
+    _hash: int
+
+    def __hash__(self) -> int:
+        return self._hash
+
+    def __eq__(self, other) -> bool:
+        # Explicitly implemented for performance (vs delegating to Qid).
+        if isinstance(other, _BaseLineQid):
+            return self is other or (self._x == other._x and self._dimension == other._dimension)
+        return NotImplemented
+
+    def __ne__(self, other) -> bool:
+        # Explicitly implemented for performance (vs delegating to Qid).
+        if isinstance(other, _BaseLineQid):
+            return self is not other and (
+                self._x != other._x or self._dimension != other._dimension
+            )
+        return NotImplemented
+
+    def __lt__(self, other) -> bool:
+        # Explicitly implemented for performance (vs delegating to Qid).
+        if isinstance(other, _BaseLineQid):
+            return self._x < other._x or (
+                self._x == other._x and self._dimension < other._dimension
+            )
+        return super().__lt__(other)
+
+    def __le__(self, other) -> bool:
+        # Explicitly implemented for performance (vs delegating to Qid).
+        if isinstance(other, _BaseLineQid):
+            return self._x < other._x or (
+                self._x == other._x and self._dimension <= other._dimension
+            )
+        return super().__le__(other)
+
+    def __ge__(self, other) -> bool:
+        # Explicitly implemented for performance (vs delegating to Qid).
+        if isinstance(other, _BaseLineQid):
+            return self._x > other._x or (
+                self._x == other._x and self._dimension >= other._dimension
+            )
+        return super().__ge__(other)
+
+    def __gt__(self, other) -> bool:
+        # Explicitly implemented for performance (vs delegating to Qid).
+        if isinstance(other, _BaseLineQid):
+            return self._x > other._x or (
+                self._x == other._x and self._dimension > other._dimension
+            )
+        return super().__gt__(other)
+
+    def _comparison_key(self):
+        return self._x
+
+    @property
+    def x(self) -> int:
+        return self._x
+
+    @property
+    def dimension(self) -> int:
+        return self._dimension
+
+    def with_dimension(self, dimension: int) -> LineQid:
+        return LineQid(self._x, dimension)
+
+    def is_adjacent(self, other: cirq.Qid) -> bool:
+        """Determines if two qubits are adjacent line qubits.
+
+        Args:
+            other: `cirq.Qid` to test for adjacency.
+
+        Returns: True iff other and self are adjacent.
+        """
+        return isinstance(other, _BaseLineQid) and abs(self._x - other._x) == 1
+
+    def neighbors(self, qids: Iterable[ops.Qid] | None = None) -> set[_BaseLineQid]:
+        """Returns qubits that are potential neighbors to this LineQubit
+
+        Args:
+            qids: optional Iterable of qubits to constrain neighbors to.
+        """
+        return {q for q in [self - 1, self + 1] if qids is None or q in qids}
+
+    @abc.abstractmethod
+    def _with_x(self, x: int) -> Self:
+        """Returns a qubit with the same type but a different value of `x`."""
+
+    def __add__(self, other: int | Self) -> Self:
+        if isinstance(other, _BaseLineQid):
+            if self._dimension != other._dimension:
+                raise TypeError(
+                    "Can only add LineQids with identical dimension. "
+                    f"Got {self._dimension} and {other._dimension}"
+                )
+            return self._with_x(x=self._x + other._x)
+        if not isinstance(other, int):
+            raise TypeError(f"Can only add ints and {type(self).__name__}. Instead was {other}")
+        return self._with_x(self._x + other)
+
+    def __sub__(self, other: int | Self) -> Self:
+        if isinstance(other, _BaseLineQid):
+            if self._dimension != other._dimension:
+                raise TypeError(
+                    "Can only subtract LineQids with identical dimension. "
+                    f"Got {self._dimension} and {other._dimension}"
+                )
+            return self._with_x(x=self._x - other._x)
+        if not isinstance(other, int):
+            raise TypeError(
+                f"Can only subtract ints and {type(self).__name__}. Instead was {other}"
+            )
+        return self._with_x(self._x - other)
+
+    def __radd__(self, other: int) -> Self:
+        return self + other
+
+    def __rsub__(self, other: int) -> Self:
+        return -self + other
+
+    def __neg__(self) -> Self:
+        return self._with_x(-self._x)
+
+    def __complex__(self) -> complex:
+        return complex(self._x)
+
+    def __float__(self) -> float:
+        return float(self._x)
+
+    def __int__(self) -> int:
+        return int(self._x)
+
+
+class LineQid(_BaseLineQid):
+    """A qid on a 1d lattice with nearest-neighbor connectivity.
+
+    `LineQid`s have a single attribute, and integer coordinate 'x', which
+    identifies the qids location on the line. `LineQid`s are ordered by
+    this integer.
+
+    One can construct new `cirq.LineQid`s by adding or subtracting integers:
+
+    >>> cirq.LineQid(1, dimension=2) + 3
+    cirq.LineQid(4, dimension=2)
+
+    >>> cirq.LineQid(2, dimension=3) - 1
+    cirq.LineQid(1, dimension=3)
+
+    """
+
+    # Cache of existing LineQid instances, returned by __new__ if available.
+    # Holds weak references so instances can still be garbage collected.
+    _cache = weakref.WeakValueDictionary[tuple[int, int], 'cirq.LineQid']()
+
+    def __new__(cls, x: int, dimension: int) -> cirq.LineQid:
+        """Initializes a line qid at the given x coordinate.
+
+        Args:
+            x: The x coordinate.
+            dimension: The dimension of the qid's Hilbert space, i.e.
+                the number of quantum levels.
+        """
+        dimension = int(dimension)
+        key = (x, dimension)
+        inst = cls._cache.get(key)
+        if inst is None:
+            cls.validate_dimension(dimension)
+            inst = super().__new__(cls)
+            inst._x = x
+            inst._dimension = dimension
+            inst._hash = (dimension - 2) * 1_000_003 + hash(x)
+            cls._cache[key] = inst
+        return inst
+
+    def __getnewargs__(self):
+        """Returns a tuple of args to pass to __new__ when unpickling."""
+        return (self._x, self._dimension)
+
+    # avoid pickling the _hash value, attributes are already stored with __getnewargs__
+    def __getstate__(self) -> dict[str, Any]:
+        return {}
+
+    def _with_x(self, x: int) -> LineQid:
+        return LineQid(x, dimension=self._dimension)
+
+    @staticmethod
+    def range(*range_args, dimension: int) -> list[LineQid]:
+        """Returns a range of line qids.
+
+        Args:
+            *range_args: Same arguments as python's built-in range method.
+            dimension: The dimension of the qid's Hilbert space, i.e.
+                the number of quantum levels.
+
+        Returns:
+            A list of line qids.
+        """
+        return [LineQid(i, dimension=dimension) for i in range(*range_args)]
+
+    @staticmethod
+    def for_qid_shape(qid_shape: Sequence[int], start: int = 0, step: int = 1) -> list[LineQid]:
+        """Returns a range of line qids for each entry in `qid_shape` with
+        matching dimension.
+
+        Args:
+            qid_shape: A sequence of dimensions for each `LineQid` to create.
+            start: The x coordinate of the first `LineQid`.
+            step: The amount to increment each x coordinate.
+        """
+        return [
+            LineQid(start + step * i, dimension=dimension) for i, dimension in enumerate(qid_shape)
+        ]
+
+    @staticmethod
+    def for_gate(val: Any, start: int = 0, step: int = 1) -> list[LineQid]:
+        """Returns a range of line qids with the same qid shape as the gate.
+
+        Args:
+            val: Any value that supports the `cirq.qid_shape` protocol.  Usually
+                a gate.
+            start: The x coordinate of the first `LineQid`.
+            step: The amount to increment each x coordinate.
+        """
+        # Avoids circular import.
+        from cirq.protocols.qid_shape_protocol import qid_shape
+
+        return LineQid.for_qid_shape(qid_shape(val), start=start, step=step)
+
+    def __repr__(self) -> str:
+        return f"cirq.LineQid({self._x}, dimension={self._dimension})"
+
+    def __str__(self) -> str:
+        return f"q({self._x}) (d={self._dimension})"
+
+    def _circuit_diagram_info_(self, args: cirq.CircuitDiagramInfoArgs) -> cirq.CircuitDiagramInfo:
+        return protocols.CircuitDiagramInfo(wire_symbols=(f"{self._x} (d={self._dimension})",))
+
+    def _json_dict_(self) -> dict[str, Any]:
+        return protocols.obj_to_dict_helper(self, ['x', 'dimension'])
+
+
+class LineQubit(_BaseLineQid):
+    """A qubit on a 1d lattice with nearest-neighbor connectivity.
+
+    LineQubits have a single attribute, and integer coordinate 'x', which
+    identifies the qubits location on the line. LineQubits are ordered by
+    this integer.
+
+    One can construct new `cirq.LineQubit`s by adding or subtracting integers:
+
+    >>> cirq.LineQubit(1) + 3
+    cirq.LineQubit(4)
+
+    >>> cirq.LineQubit(2) - 1
+    cirq.LineQubit(1)
+
+    """
+
+    _dimension = 2
+
+    # Cache of existing LineQubit instances, returned by __new__ if available.
+    # Holds weak references so instances can still be garbage collected.
+    _cache = weakref.WeakValueDictionary[int, 'cirq.LineQubit']()
+
+    def __new__(cls, x: int) -> cirq.LineQubit:
+        """Initializes a line qid at the given x coordinate.
+
+        Args:
+            x: The x coordinate.
+        """
+        inst = cls._cache.get(x)
+        if inst is None:
+            inst = super().__new__(cls)
+            inst._x = x
+            inst._hash = hash(x)
+            cls._cache[x] = inst
+        return inst
+
+    def __getnewargs__(self):
+        """Returns a tuple of args to pass to __new__ when unpickling."""
+        return (self._x,)
+
+    # avoid pickling the _hash value, attributes are already stored with __getnewargs__
+    def __getstate__(self) -> dict[str, Any]:
+        return {}
+
+    def _with_x(self, x: int) -> LineQubit:
+        return LineQubit(x)
+
+    @staticmethod
+    def range(*range_args) -> list[LineQubit]:
+        """Returns a range of line qubits.
+
+        Args:
+            *range_args: Same arguments as python's built-in range method.
+
+        Returns:
+            A list of line qubits.
+        """
+        return [LineQubit(i) for i in range(*range_args)]
+
+    def __repr__(self) -> str:
+        return f"cirq.LineQubit({self._x})"
+
+    def __str__(self) -> str:
+        return f"q({self._x})"
+
+    def _circuit_diagram_info_(self, args: cirq.CircuitDiagramInfoArgs) -> cirq.CircuitDiagramInfo:
+        return protocols.CircuitDiagramInfo(wire_symbols=(f"{self._x}",))
+
+    def _json_dict_(self) -> dict[str, Any]:
+        return protocols.obj_to_dict_helper(self, ['x'])
