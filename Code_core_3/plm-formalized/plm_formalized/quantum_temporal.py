@@ -11,6 +11,8 @@ from .model import plm_secret_value
 # Cirq is an optional dependency.
 # Install: pip install cirq
 import cirq
+import os
+import json
 import sympy
 
 
@@ -89,7 +91,30 @@ def simulate_time_series(
         cfg = QuantumTemporalConfig()
 
     circuit, theta_sym, q = build_parametric_circuit()
-    sim = cirq.Simulator()
+
+    # Check for CUDA config
+    config_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'cuda_config.json')
+    cuda_enabled = False
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, 'r') as f:
+                config = json.load(f)
+                cuda_enabled = config.get('CUDA_Enabled', False)
+        except Exception:
+            pass
+
+    if cuda_enabled:
+        try:
+            import qsimcirq
+            sim = qsimcirq.QSimSimulator()
+        except ImportError:
+            try:
+                import tensorflow as tf
+                sim = cirq.TensorFlowSimulator()
+            except ImportError:
+                sim = cirq.Simulator()
+    else:
+        sim = cirq.Simulator()
 
     out: List[Dict[str, Any]] = []
 

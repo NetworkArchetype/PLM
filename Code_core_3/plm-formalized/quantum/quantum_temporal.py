@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from math import tau
 from typing import List, Tuple, Dict, Any, Optional
+import sys
 
 from .stateful import StatefulPLM
 from .model import plm_secret_value
@@ -12,6 +13,8 @@ from .model import plm_secret_value
 # Install: pip install cirq
 import cirq
 import sympy
+
+print("quantum_temporal.py imported", file=sys.stderr)
 
 
 @dataclass(frozen=True)
@@ -85,11 +88,50 @@ def simulate_time_series(
         "expZ": float (estimated <Z> = p0 - p1)
       }
     """
+    print("simulate_time_series called")
+
     if cfg is None:
         cfg = QuantumTemporalConfig()
 
     circuit, theta_sym, q = build_parametric_circuit()
-    sim = cirq.Simulator()
+
+    # Check for CUDA config
+    config_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'cuda_config.json')
+    cuda_enabled = False
+    print(f"Checking config at {config_path}")
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, 'r') as f:
+                config = json.load(f)
+                cuda_enabled = config.get('CUDA_Enabled', False)
+                print(f"Config loaded: CUDA_Enabled={cuda_enabled}")
+        except Exception as e:
+            print(f"Error loading config: {e}")
+    else:
+        print(f"Config not found at {config_path}")
+
+    if cuda_enabled:
+        try:
+            import qsimcirq
+            sim = qsimcirq.QSimSimulator()
+            print("Using QSimSimulator", file=sys.stderr)
+        except ImportError as e:
+            print(f"QSim import failed: {e}", file=sys.stderr)
+            try:
+                import tensorflow as tf
+                if tf.config.list_physical_devices('GPU'):
+                    sim = cirq.TensorFlowSimulator()
+                    print("Using TensorFlowSimulator with GPU", file=sys.stderr)
+                else:
+                    sim = cirq.Simulator()
+                    print("CUDA enabled but no GPU detected, using CPU Simulator", file=sys.stderr)
+            except ImportError as e:
+                print(f"TensorFlow import failed: {e}", file=sys.stderr)
+                sim = cirq.Simulator()
+                print("CUDA enabled but TensorFlow/QSim not available, using CPU Simulator", file=sys.stderr)
+    else:
+        sim = cirq.Simulator()
+        print("Using CPU Simulator", file=sys.stderr)
 
     out: List[Dict[str, Any]] = []
 

@@ -139,6 +139,7 @@ function Detect-Environment {
     Docker         = Detect-DockerDesktop
     HyperV         = Detect-HyperVEnabled
     NvidiaSMI      = Exists-Cmd "nvidia-smi"
+    CUDA           = Exists-Cmd "nvcc"
   }
   return $state
 }
@@ -190,6 +191,9 @@ function Render-Status($s) {
 
   $script:lblNvidiaValue.ForeColor = Status-Color $s.NvidiaSMI
   $script:lblNvidiaValue.Text      = $(if ($s.NvidiaSMI){"OK"} else {"Not found"})
+
+  $script:lblCUDAValue.ForeColor = Status-Color $s.CUDA
+  $script:lblCUDAValue.Text      = $(if ($s.CUDA){"OK"} else {"Not found"})
 }
 
 # -----------------------------
@@ -202,7 +206,7 @@ function Do-InstallOrRepair {
 
   if (-not $s.Winget) { Log "winget missing. Install 'App Installer' from Microsoft Store."; return }
 
-  foreach ($id in @("Git.Git","Python.Python.3.12","Microsoft.VisualStudioCode","Microsoft.WindowsTerminal","Docker.DockerDesktop")) {
+  foreach ($id in @("Git.Git","Python.Python.3.12","Microsoft.VisualStudioCode","Microsoft.WindowsTerminal","Docker.DockerDesktop","Nvidia.CUDA")) {
     try { Winget-Install $id; Log "Installed: $id" } catch { Log "Install failed: $id :: $($_.Exception.Message)" }
   }
 
@@ -233,7 +237,7 @@ function Do-Update {
   if (-not $s.Winget) { Log "winget missing; cannot update."; return }
 
   Log "Updating packages (winget upgrade)..."
-  foreach ($id in @("Git.Git","Python.Python.3.12","Microsoft.VisualStudioCode","Microsoft.WindowsTerminal","Docker.DockerDesktop")) {
+  foreach ($id in @("Git.Git","Python.Python.3.12","Microsoft.VisualStudioCode","Microsoft.WindowsTerminal","Docker.DockerDesktop","Nvidia.CUDA")) {
     try { Winget-Upgrade $id; Log "Upgraded: $id" } catch { Log "Upgrade failed: $id :: $($_.Exception.Message)" }
   }
 
@@ -283,6 +287,43 @@ Tip: Docker + WSL are the fastest sandboxes; Hyper-V is full OS isolation.
     [System.Windows.Forms.MessageBoxIcon]::Information) | Out-Null
 }
 
+function Do-TestCUDA {
+  Log "Testing CUDA..."
+  if (-not (Exists-Cmd "nvidia-smi")) {
+    Log "nvidia-smi not found. Install NVIDIA drivers first."
+    return
+  }
+  try {
+    $gpu = Get-CimInstance Win32_VideoController | Where-Object { $_.Name -like "*NVIDIA*" } | Select-Object -First 1
+    if ($gpu) {
+      Log "Detected GPU: $($gpu.Name)"
+    } else {
+      Log "No NVIDIA GPU detected."
+      return
+    }
+  } catch {
+    Log "Error detecting GPU: $($_.Exception.Message)"
+    return
+  }
+  if (-not (Exists-Cmd "nvcc")) {
+    Log "nvcc not found. Install CUDA Toolkit."
+    return
+  }
+  try {
+    $nvccVersion = & nvcc --version 2>$null | Select-String "release" | ForEach-Object { $_.Line }
+    Log "CUDA version: $nvccVersion"
+  } catch {
+    Log "Error getting CUDA version: $($_.Exception.Message)"
+  }
+  try {
+    $smi = & nvidia-smi --query-gpu=name,memory.total,memory.free --format=csv,noheader,nounits 2>$null
+    Log "GPU Info: $smi"
+  } catch {
+    Log "Error running nvidia-smi: $($_.Exception.Message)"
+  }
+  Log "CUDA test completed."
+}
+
 # -----------------------------
 # GUI
 # -----------------------------
@@ -295,14 +336,14 @@ $font = New-Object System.Drawing.Font("Segoe UI", 10)
 
 $pTop = New-Object System.Windows.Forms.Panel
 $pTop.Dock = "Top"
-$pTop.Height = 260
+$pTop.Height = 300
 $form.Controls.Add($pTop)
 
 $grpStatus = New-Object System.Windows.Forms.GroupBox
 $grpStatus.Text = "Environment Detection"
 $grpStatus.Font = $font
 $grpStatus.Location = New-Object System.Drawing.Point(12, 10)
-$grpStatus.Size = New-Object System.Drawing.Size(520, 240)
+$grpStatus.Size = New-Object System.Drawing.Size(520, 280)
 $pTop.Controls.Add($grpStatus)
 function Add-StatusRow($parent, $label, $y, [ref]$valueLabel) {
   $lbl = New-Object System.Windows.Forms.Label
@@ -346,6 +387,21 @@ $script:lblNvidiaValue.Location = New-Object System.Drawing.Point(240, 230)
 $script:lblNvidiaValue.Size = New-Object System.Drawing.Size(240, 22)
 $script:lblNvidiaValue.Font = $font
 $grpStatus.Controls.Add($script:lblNvidiaValue)
+
+# CUDA row
+$lblCUDATitle = New-Object System.Windows.Forms.Label
+$lblCUDATitle.Text = "CUDA Toolkit (nvcc)"
+$lblCUDATitle.Location = New-Object System.Drawing.Point(16, 255)
+$lblCUDATitle.Size = New-Object System.Drawing.Size(210, 22)
+$lblCUDATitle.Font = $font
+$grpStatus.Controls.Add($lblCUDATitle)
+
+$script:lblCUDAValue = New-Object System.Windows.Forms.Label
+$script:lblCUDAValue.Text = "—"
+$script:lblCUDAValue.Location = New-Object System.Drawing.Point(240, 255)
+$script:lblCUDAValue.Size = New-Object System.Drawing.Size(240, 22)
+$script:lblCUDAValue.Font = $font
+$grpStatus.Controls.Add($script:lblCUDAValue)
 
 $grpActions = New-Object System.Windows.Forms.GroupBox
 $grpActions.Text = "Actions & Modes"
@@ -483,6 +539,14 @@ $btnHyperVNote.Size = New-Object System.Drawing.Size(70, 30)
 $btnHyperVNote.Font = $font
 $grpActions.Controls.Add($btnHyperVNote)
 
+# CUDA button
+$btnCUDATest = New-Object System.Windows.Forms.Button
+$btnCUDATest.Text = "Test CUDA"
+$btnCUDATest.Location = New-Object System.Drawing.Point(16, 196)
+$btnCUDATest.Size = New-Object System.Drawing.Size(100, 30)
+$btnCUDATest.Font = $font
+$grpActions.Controls.Add($btnCUDATest)
+
 # Log box
 $script:txtLog = New-Object System.Windows.Forms.TextBox
 $script:txtLog.Multiline = $true
@@ -532,6 +596,8 @@ $btnDockerBash.Add_Click({
 
 $btnHyperV.Add_Click({ Do-OpenHyperVManager })
 $btnHyperVNote.Add_Click({ Do-CreateHyperVSandboxNote })
+
+$btnCUDATest.Add_Click({ Do-TestCUDA })
 
 $cmbMode.Add_SelectedIndexChanged({
   $mode = $cmbMode.SelectedItem.ToString()

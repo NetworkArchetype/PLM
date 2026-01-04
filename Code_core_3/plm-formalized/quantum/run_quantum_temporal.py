@@ -12,6 +12,7 @@ Requirements:
 """
 
 from decimal import Decimal
+import sys
 
 from plm_formalized import (
     PLMInputs,
@@ -70,6 +71,8 @@ def main():
     # ----------------------------
     steps = 20
     records = simulate_time_series(machine, steps=steps, cfg=cfg)
+
+    print("Simulation completed", file=sys.stderr)
 
     # ----------------------------
     # Output CSV
