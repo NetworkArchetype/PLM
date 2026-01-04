@@ -131,7 +131,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Debug: show Python environment & files
+      - name: "Debug: show Python environment & files"
         run: |
           mkdir -p /tmp/ci-logs
           echo "Runner info: $RUNNER_OS" > /tmp/ci-logs/runner_info.txt
