@@ -1,4 +1,4 @@
-<#  PLM-Environment-AdminGUI.ps1
+<#  PLM-Environment-AdminGUI.fixed.ps1
     Admin GUI to detect + manage the environment deployed by Deploy-PLM-Environment.ps1.
     WinForms GUI (built-in), runs elevated, supports Native/WSL/Docker/Hyper-V modes.
 #>
@@ -11,9 +11,6 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-# -----------------------------
-# Elevation
-# -----------------------------
 function Ensure-Admin {
   $id = [Security.Principal.WindowsIdentity]::GetCurrent()
   $p  = New-Object Security.Principal.WindowsPrincipal($id)
@@ -29,8 +26,31 @@ Ensure-Admin
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
+function Add-StatusRow {
+  param(
+    $parent,
+    $label,
+    $y
+  )
+  $lbl = New-Object System.Windows.Forms.Label
+  $lbl.Text = $label
+  $lbl.Location = New-Object System.Drawing.Point(16, $y)
+  $lbl.Size = New-Object System.Drawing.Size(210, 22)
+  $lbl.Font = $font
+  $parent.Controls.Add($lbl)
+
+  $val = New-Object System.Windows.Forms.Label
+  $val.Text = "—"
+  $val.Location = New-Object System.Drawing.Point(240, $y)
+  $val.Size = New-Object System.Drawing.Size(240, 22)
+  $val.Font = $font
+  $parent.Controls.Add($val)
+
+  return $val
+}
+
 # -----------------------------
-# Utilities
+# Logging (defined after UI textbox exists, but keep helper)
 # -----------------------------
 $script:txtLog = $null
 function Log([string]$msg) {
@@ -44,22 +64,13 @@ function Log([string]$msg) {
   }
 }
 
-function Try-Run([scriptblock]$sb, [string]$okMsg, [string]$failMsg) {
-  try { & $sb; Log $okMsg; return $true }
-  catch { Log ($failMsg + " :: " + $_.Exception.Message); return $false }
-}
-
-function Exists-Cmd([string]$name) {
-  return [bool](Get-Command $name -ErrorAction SilentlyContinue)
-}
-
+function Exists-Cmd([string]$name) { return [bool](Get-Command $name -ErrorAction SilentlyContinue) }
 function Winget-Ok { Exists-Cmd "winget" }
 
 function Winget-Install([string]$Id) {
   if (-not (Winget-Ok)) { throw "winget not found (install App Installer from Microsoft Store)." }
   winget install --id $Id -e --silent --accept-package-agreements --accept-source-agreements | Out-Host
 }
-
 function Winget-Upgrade([string]$Id) {
   if (-not (Winget-Ok)) { throw "winget not found (install App Installer from Microsoft Store)." }
   winget upgrade --id $Id -e --silent --accept-package-agreements --accept-source-agreements | Out-Host
@@ -116,7 +127,6 @@ function Detect-VMPFeatureEnabled {
   return ($res -match "State : Enabled")
 }
 function Detect-HyperVEnabled {
-  # Hyper-V optional feature (not available on Home unless enabled via other means)
   $res = dism.exe /online /get-featureinfo /featurename:Microsoft-Hyper-V-All 2>$null
   if ($LASTEXITCODE -ne 0) { return $false }
   return ($res -match "State : Enabled")
@@ -129,7 +139,6 @@ function Detect-UbuntuInstalled {
   } catch { return $false }
 }
 function Detect-DockerDesktop {
-  # Quick check: docker cli + docker server reachable
   if (-not (Exists-Cmd "docker")) { return $false }
   try {
     docker version --format "{{.Server.Version}}" 2>$null | Out-Null
@@ -153,6 +162,7 @@ function Detect-Environment {
     Docker         = Detect-DockerDesktop
     HyperV         = Detect-HyperVEnabled
     NvidiaSMI      = Exists-Cmd "nvidia-smi"
+    CUDA           = Exists-Cmd "nvcc"
   }
   return $state
 }
@@ -204,10 +214,13 @@ function Render-Status($s) {
 
   $script:lblNvidiaValue.ForeColor = Status-Color $s.NvidiaSMI
   $script:lblNvidiaValue.Text      = $(if ($s.NvidiaSMI){"OK"} else {"Not found"})
+
+  $script:lblCUDAValue.ForeColor = Status-Color $s.CUDA
+  $script:lblCUDAValue.Text      = $(if ($s.CUDA){"OK"} else {"Not found"})
 }
 
 # -----------------------------
-# Actions: Install/Update/Repair
+# Actions
 # -----------------------------
 function Do-InstallOrRepair {
   $s = Detect-Environment
@@ -216,30 +229,28 @@ function Do-InstallOrRepair {
 
   if (-not $s.Winget) { Log "winget missing. Install 'App Installer' from Microsoft Store."; return }
 
-  Try-Run { Winget-Install "Git.Git" } "Git install OK" "Git install failed" | Out-Null
-  Try-Run { Winget-Install "Python.Python.3.12" } "Python install OK" "Python install failed" | Out-Null
-  Try-Run { Winget-Install "Microsoft.VisualStudioCode" } "VS Code install OK" "VS Code install failed" | Out-Null
-  Try-Run { Winget-Install "Microsoft.WindowsTerminal" } "Windows Terminal install OK" "Windows Terminal install failed" | Out-Null
-  Try-Run { Winget-Install "Docker.DockerDesktop" } "Docker Desktop install OK" "Docker Desktop install failed" | Out-Null
+  foreach ($id in @("Git.Git","Python.Python.3.12","Microsoft.VisualStudioCode","Microsoft.WindowsTerminal","Docker.DockerDesktop","Nvidia.CUDA")) {
+    try { Winget-Install $id; Log "Installed: $id" } catch { Log "Install failed: $id :: $($_.Exception.Message)" }
+  }
 
   Log "Enabling WSL2 features..."
-  Try-Run { dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart | Out-Null } "WSL feature enable OK" "WSL feature enable failed" | Out-Null
-  Try-Run { dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart | Out-Null } "VMP enable OK" "VMP enable failed" | Out-Null
+  try { dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart | Out-Null; Log "WSL feature enabled (or already enabled)." } catch { Log "WSL feature enable failed: $($_.Exception.Message)" }
+  try { dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart | Out-Null; Log "VirtualMachinePlatform enabled (or already enabled)." } catch { Log "VMP enable failed: $($_.Exception.Message)" }
 
   if (Exists-Cmd "wsl") {
-    Try-Run { wsl.exe --set-default-version 2 | Out-Host } "WSL default version set to 2" "WSL set-default-version failed" | Out-Null
-    Try-Run { wsl.exe --install -d Ubuntu | Out-Host } "Ubuntu install triggered" "Ubuntu install may already exist / needs reboot" | Out-Null
+    try { wsl.exe --set-default-version 2 | Out-Host; Log "WSL default set to 2." } catch { Log "WSL set-default-version failed: $($_.Exception.Message)" }
+    try { wsl.exe --install -d Ubuntu | Out-Host; Log "Ubuntu install triggered (or already installed)." } catch { Log "Ubuntu install may already exist / needs reboot: $($_.Exception.Message)" }
   }
 
   $codeCmd = Find-CodeCmd
   if ($codeCmd) {
     Log "Installing VS Code extensions..."
-    Try-Run { Install-VSCodeExtensions $codeCmd } "VS Code extensions OK" "VS Code extensions failed" | Out-Null
+    try { Install-VSCodeExtensions $codeCmd; Log "VS Code extensions installed." } catch { Log "VS Code extensions failed: $($_.Exception.Message)" }
   } else {
-    Log "VS Code CLI not detected yet (launch VS Code once, then run Extensions install)."
+    Log "VS Code CLI not detected yet (launch VS Code once, then rerun extensions)."
   }
 
-  Log "Install/Repair finished. You may need to reboot if WSL features were just enabled."
+  Log "Install/Repair finished. Reboot may be required if WSL features were newly enabled."
   Render-Status (Detect-Environment)
 }
 
@@ -249,14 +260,14 @@ function Do-Update {
   if (-not $s.Winget) { Log "winget missing; cannot update."; return }
 
   Log "Updating packages (winget upgrade)..."
-  foreach ($id in @("Git.Git","Python.Python.3.12","Microsoft.VisualStudioCode","Microsoft.WindowsTerminal","Docker.DockerDesktop")) {
-    Try-Run { Winget-Upgrade $id } "Upgraded: $id" "Upgrade failed: $id" | Out-Null
+  foreach ($id in @("Git.Git","Python.Python.3.12","Microsoft.VisualStudioCode","Microsoft.WindowsTerminal","Docker.DockerDesktop","Nvidia.CUDA")) {
+    try { Winget-Upgrade $id; Log "Upgraded: $id" } catch { Log "Upgrade failed: $id :: $($_.Exception.Message)" }
   }
 
   $codeCmd = Find-CodeCmd
   if ($codeCmd) {
     Log "Re-applying VS Code extensions (idempotent)..."
-    Try-Run { Install-VSCodeExtensions $codeCmd } "VS Code extensions OK" "VS Code extensions failed" | Out-Null
+    try { Install-VSCodeExtensions $codeCmd; Log "VS Code extensions OK." } catch { Log "VS Code extensions failed: $($_.Exception.Message)" }
   }
 
   Render-Status (Detect-Environment)
@@ -266,7 +277,7 @@ function Do-Update {
 function Do-RunDeployScript {
   if (-not $DeployScriptPath -or -not (Test-Path $DeployScriptPath)) {
     [System.Windows.Forms.MessageBox]::Show(
-      "Deploy script not set or not found. Use 'Select Deploy Script' first.",
+      "Deploy script not set or not found. Use 'Select' to choose Deploy-PLM-Environment.ps1 first.",
       "Missing Deploy Script",
       [System.Windows.Forms.MessageBoxButtons]::OK,
       [System.Windows.Forms.MessageBoxIcon]::Warning
@@ -277,11 +288,7 @@ function Do-RunDeployScript {
   Start-Process powershell.exe -Verb RunAs -ArgumentList "-NoProfile","-ExecutionPolicy","Bypass","-File",$DeployScriptPath | Out-Null
 }
 
-# -----------------------------
-# Hyper-V sandbox helpers
-# -----------------------------
 function Do-OpenHyperVManager {
-  # Hyper-V Manager (virtmgmt.msc) if installed
   if (Test-Path "$env:WINDIR\System32\virtmgmt.msc") {
     Start-Process mmc.exe -Verb RunAs -ArgumentList "$env:WINDIR\System32\virtmgmt.msc" | Out-Null
     Log "Opened Hyper-V Manager."
@@ -289,23 +296,59 @@ function Do-OpenHyperVManager {
     Log "Hyper-V Manager not found (Hyper-V may be unavailable on this edition)."
   }
 }
-
 function Do-CreateHyperVSandboxNote {
   $msg = @"
 Hyper-V Sandbox Mode (GUI):
-- Use Hyper-V Manager to create a VM (Windows or Ubuntu).
-- Mount an ISO and install.
-- Then run Deploy-PLM-Environment.ps1 inside the VM.
+- Click 'Open Hyper-V' to create/manage a VM.
+- Install Windows/Ubuntu in the VM from an ISO.
+- Run Deploy-PLM-Environment.ps1 inside the VM for an isolated sandbox.
 
-This GUI can open Hyper-V Manager and provide the deployed scripts folder path.
+Tip: Docker + WSL are the fastest sandboxes; Hyper-V is full OS isolation.
 "@
-  [System.Windows.Forms.MessageBox]::Show($msg, "Hyper-V Sandbox Notes",
+  [System.Windows.Forms.MessageBox]::Show($msg, "Hyper-V Sandbox Help",
     [System.Windows.Forms.MessageBoxButtons]::OK,
     [System.Windows.Forms.MessageBoxIcon]::Information) | Out-Null
 }
 
+function Do-TestCUDA {
+  Log "Testing CUDA..."
+  if (-not (Exists-Cmd "nvidia-smi")) {
+    Log "nvidia-smi not found. Install NVIDIA drivers first."
+    return
+  }
+  try {
+    $gpu = Get-CimInstance Win32_VideoController | Where-Object { $_.Name -like "*NVIDIA*" } | Select-Object -First 1
+    if ($gpu) {
+      Log "Detected GPU: $($gpu.Name)"
+    } else {
+      Log "No NVIDIA GPU detected."
+      return
+    }
+  } catch {
+    Log "Error detecting GPU: $($_.Exception.Message)"
+    return
+  }
+  if (-not (Exists-Cmd "nvcc")) {
+    Log "nvcc not found. Install CUDA Toolkit."
+    return
+  }
+  try {
+    $nvccVersion = & nvcc --version 2>$null | Select-String "release" | ForEach-Object { $_.Line }
+    Log "CUDA version: $nvccVersion"
+  } catch {
+    Log "Error getting CUDA version: $($_.Exception.Message)"
+  }
+  try {
+    $smi = & nvidia-smi --query-gpu=name,memory.total,memory.free --format=csv,noheader,nounits 2>$null
+    Log "GPU Info: $smi"
+  } catch {
+    Log "Error running nvidia-smi: $($_.Exception.Message)"
+  }
+  Log "CUDA test completed."
+}
+
 # -----------------------------
-# GUI Layout
+# GUI
 # -----------------------------
 $form = New-Object System.Windows.Forms.Form
 $form.Text = "PLM Environment Admin GUI (Native / WSL / Docker / Hyper-V)"
@@ -314,54 +357,63 @@ $form.StartPosition = "CenterScreen"
 
 $font = New-Object System.Drawing.Font("Segoe UI", 10)
 
-# Header panel
 $pTop = New-Object System.Windows.Forms.Panel
 $pTop.Dock = "Top"
-$pTop.Height = 250
+$pTop.Height = 300
 $form.Controls.Add($pTop)
 
-# Status group
 $grpStatus = New-Object System.Windows.Forms.GroupBox
 $grpStatus.Text = "Environment Detection"
 $grpStatus.Font = $font
 $grpStatus.Location = New-Object System.Drawing.Point(12, 10)
-$grpStatus.Size = New-Object System.Drawing.Size(520, 230)
+$grpStatus.Size = New-Object System.Drawing.Size(520, 280)
 $pTop.Controls.Add($grpStatus)
 
-function Add-StatusRow($parent, $label, $y, [ref]$valueLabel) {
-  $lbl = New-Object System.Windows.Forms.Label
-  $lbl.Text = $label
-  $lbl.Location = New-Object System.Drawing.Point(16, $y)
-  $lbl.Size = New-Object System.Drawing.Size(210, 22)
-  $lbl.Font = $font
-  $parent.Controls.Add($lbl)
-
-  $val = New-Object System.Windows.Forms.Label
-  $val.Text = "-"
-  $val.Location = New-Object System.Drawing.Point(240, $y)
-  $val.Size = New-Object System.Drawing.Size(240, 22)
-  $val.Font = $font
-  $parent.Controls.Add($val)
-
-  $valueLabel.Value = $val
-}
-
 # IMPORTANT: keep each call on ONE LINE (your original parse error)
-Add-StatusRow $grpStatus "winget"               30 ([ref]$script:lblWingetValue)
-Add-StatusRow $grpStatus "Git"                  55 ([ref]$script:lblGitValue)
-Add-StatusRow $grpStatus "Python"               80 ([ref]$script:lblPythonValue)
-Add-StatusRow $grpStatus "VS Code (any version)" 105 ([ref]$script:lblVSCodeValue)
-Add-StatusRow $grpStatus "Windows Terminal"     130 ([ref]$script:lblWTValue)
-Add-StatusRow $grpStatus "WSL2 Features"        155 ([ref]$script:lblWSLFeatValue)
-Add-StatusRow $grpStatus "Ubuntu (WSL distro)"  180 ([ref]$script:lblUbuntuValue)
-Add-StatusRow $grpStatus "Docker Desktop"       205 ([ref]$script:lblDockerValue)
+$script:lblWingetValue = Add-StatusRow -parent $grpStatus -label "winget" -y 30
+$script:lblGitValue = Add-StatusRow -parent $grpStatus -label "Git" -y 55
+$script:lblPythonValue = Add-StatusRow -parent $grpStatus -label "Python" -y 80
+$script:lblVSCodeValue = Add-StatusRow -parent $grpStatus -label "VS Code (any version)" -y 105
+$script:lblWTValue = Add-StatusRow -parent $grpStatus -label "Windows Terminal" -y 130
+$script:lblWSLFeatValue = Add-StatusRow -parent $grpStatus -label "WSL2 Features" -y 155
+$script:lblUbuntuValue = Add-StatusRow -parent $grpStatus -label "Ubuntu (WSL distro)" -y 180
+$script:lblDockerValue = Add-StatusRow -parent $grpStatus -label "Docker Desktop" -y 205
 
-# Right side group: Modes + actions
+# Nvidia row (extra)
+$lblNvidiaTitle = New-Object System.Windows.Forms.Label
+$lblNvidiaTitle.Text = "nvidia-smi (Windows)"
+$lblNvidiaTitle.Location = New-Object System.Drawing.Point(16, 230)
+$lblNvidiaTitle.Size = New-Object System.Drawing.Size(210, 22)
+$lblNvidiaTitle.Font = $font
+$grpStatus.Controls.Add($lblNvidiaTitle)
+
+$script:lblNvidiaValue = New-Object System.Windows.Forms.Label
+$script:lblNvidiaValue.Text = "—"
+$script:lblNvidiaValue.Location = New-Object System.Drawing.Point(240, 230)
+$script:lblNvidiaValue.Size = New-Object System.Drawing.Size(240, 22)
+$script:lblNvidiaValue.Font = $font
+$grpStatus.Controls.Add($script:lblNvidiaValue)
+
+# CUDA row
+$lblCUDATitle = New-Object System.Windows.Forms.Label
+$lblCUDATitle.Text = "CUDA Toolkit (nvcc)"
+$lblCUDATitle.Location = New-Object System.Drawing.Point(16, 255)
+$lblCUDATitle.Size = New-Object System.Drawing.Size(210, 22)
+$lblCUDATitle.Font = $font
+$grpStatus.Controls.Add($lblCUDATitle)
+
+$script:lblCUDAValue = New-Object System.Windows.Forms.Label
+$script:lblCUDAValue.Text = "—"
+$script:lblCUDAValue.Location = New-Object System.Drawing.Point(240, 255)
+$script:lblCUDAValue.Size = New-Object System.Drawing.Size(240, 22)
+$script:lblCUDAValue.Font = $font
+$grpStatus.Controls.Add($script:lblCUDAValue)
+
 $grpActions = New-Object System.Windows.Forms.GroupBox
-$grpActions.Text = "Actions & Modes"
+$grpActions.Text = "Actions and Modes"
 $grpActions.Font = $font
 $grpActions.Location = New-Object System.Drawing.Point(548, 10)
-$grpActions.Size = New-Object System.Drawing.Size(520, 230)
+$grpActions.Size = New-Object System.Drawing.Size(520, 240)
 $pTop.Controls.Add($grpActions)
 
 # Deploy script selector
@@ -386,7 +438,7 @@ $btnPickDeploy.Size = New-Object System.Drawing.Size(55, 30)
 $btnPickDeploy.Font = $font
 $grpActions.Controls.Add($btnPickDeploy)
 
-# Buttons: Detect/Install/Update/Run deploy
+# Detect/install/update/run deploy
 $btnDetect = New-Object System.Windows.Forms.Button
 $btnDetect.Text = "Detect"
 $btnDetect.Location = New-Object System.Drawing.Point(16, 70)
@@ -435,6 +487,21 @@ $cmbMode.DropDownStyle = "DropDownList"
 $cmbMode.SelectedIndex = 0
 $grpActions.Controls.Add($cmbMode)
 
+# Hyper-V status display
+$lblHyperV = New-Object System.Windows.Forms.Label
+$lblHyperV.Text = "Hyper-V:"
+$lblHyperV.Location = New-Object System.Drawing.Point(306, 120)
+$lblHyperV.Size = New-Object System.Drawing.Size(70, 22)
+$lblHyperV.Font = $font
+$grpActions.Controls.Add($lblHyperV)
+
+$script:lblHyperVValue = New-Object System.Windows.Forms.Label
+$script:lblHyperVValue.Text = "—"
+$script:lblHyperVValue.Location = New-Object System.Drawing.Point(380, 120)
+$script:lblHyperVValue.Size = New-Object System.Drawing.Size(130, 22)
+$script:lblHyperVValue.Font = $font
+$grpActions.Controls.Add($script:lblHyperVValue)
+
 # Terminal buttons
 $btnPS = New-Object System.Windows.Forms.Button
 $btnPS.Text = "Admin PowerShell"
@@ -464,21 +531,6 @@ $btnDockerBash.Size = New-Object System.Drawing.Size(80, 34)
 $btnDockerBash.Font = $font
 $grpActions.Controls.Add($btnDockerBash)
 
-# Hyper-V controls
-$lblHyperV = New-Object System.Windows.Forms.Label
-$lblHyperV.Text = "Hyper-V:"
-$lblHyperV.Location = New-Object System.Drawing.Point(306, 120)
-$lblHyperV.Size = New-Object System.Drawing.Size(70, 22)
-$lblHyperV.Font = $font
-$grpActions.Controls.Add($lblHyperV)
-
-$script:lblHyperVValue = New-Object System.Windows.Forms.Label
-$script:lblHyperVValue.Text = "-"
-$script:lblHyperVValue.Location = New-Object System.Drawing.Point(380, 120)
-$script:lblHyperVValue.Size = New-Object System.Drawing.Size(130, 22)
-$script:lblHyperVValue.Font = $font
-$grpActions.Controls.Add($script:lblHyperVValue)
-
 $btnHyperV = New-Object System.Windows.Forms.Button
 $btnHyperV.Text = "Open Hyper-V"
 $btnHyperV.Location = New-Object System.Drawing.Point(306, 196)
@@ -493,7 +545,15 @@ $btnHyperVNote.Size = New-Object System.Drawing.Size(70, 30)
 $btnHyperVNote.Font = $font
 $grpActions.Controls.Add($btnHyperVNote)
 
-# Bottom log
+# CUDA button
+$btnCUDATest = New-Object System.Windows.Forms.Button
+$btnCUDATest.Text = "Test CUDA"
+$btnCUDATest.Location = New-Object System.Drawing.Point(16, 196)
+$btnCUDATest.Size = New-Object System.Drawing.Size(100, 30)
+$btnCUDATest.Font = $font
+$grpActions.Controls.Add($btnCUDATest)
+
+# Log box
 $script:txtLog = New-Object System.Windows.Forms.TextBox
 $script:txtLog.Multiline = $true
 $script:txtLog.ReadOnly = $true
@@ -502,26 +562,8 @@ $script:txtLog.Dock = "Fill"
 $script:txtLog.Font = New-Object System.Drawing.Font("Consolas", 10)
 $form.Controls.Add($script:txtLog)
 
-# NVIDIA label in status group (added after log init)
-$lblNvidiaTitle = New-Object System.Windows.Forms.Label
-$lblNvidiaTitle.Text = "nvidia-smi (Windows)"
-$lblNvidiaTitle.Location = New-Object System.Drawing.Point(16, 230)
-$lblNvidiaTitle.Size = New-Object System.Drawing.Size(210, 22)
-$lblNvidiaTitle.Font = $font
-$grpStatus.Controls.Add($lblNvidiaTitle)
-
-$script:lblNvidiaValue = New-Object System.Windows.Forms.Label
-$script:lblNvidiaValue.Text = "-"
-$script:lblNvidiaValue.Location = New-Object System.Drawing.Point(240, 230)
-$script:lblNvidiaValue.Size = New-Object System.Drawing.Size(240, 22)
-$script:lblNvidiaValue.Font = $font
-$grpStatus.Controls.Add($script:lblNvidiaValue)
-
-# Adjust grpStatus height slightly
-$grpStatus.Height = 240
-
 # -----------------------------
-# GUI Events
+# Events
 # -----------------------------
 $btnPickDeploy.Add_Click({
   $dlg = New-Object System.Windows.Forms.OpenFileDialog
@@ -554,7 +596,6 @@ $btnWSL.Add_Click({ Open-Terminal "wsl" })
 $btnWT.Add_Click({ Open-Terminal "wt" })
 
 $btnDockerBash.Add_Click({
-  # Choose image based on mode or default
   $img = "networkarchetype-plm:latest"
   Open-DockerBash $img
 })
@@ -562,19 +603,13 @@ $btnDockerBash.Add_Click({
 $btnHyperV.Add_Click({ Do-OpenHyperVManager })
 $btnHyperVNote.Add_Click({ Do-CreateHyperVSandboxNote })
 
-# Mode change logs
+$btnCUDATest.Add_Click({ Do-TestCUDA })
+
 $cmbMode.Add_SelectedIndexChanged({
   $mode = $cmbMode.SelectedItem.ToString()
   Log "Selected mode: $mode"
-  switch ($mode) {
-    "Native (Windows)"  { }
-    "WSL (Ubuntu)"      { }
-    "Docker Sandbox"    { }
-    "Hyper-V Sandbox"   { }
-  }
 })
 
-# Initial detection on load
 $form.Add_Shown({
   Log "PLM Environment Admin GUI started (Admin)."
   Log "Tip: Click Detect. If missing components, click Install/Repair. For updates, click Update."
@@ -583,4 +618,3 @@ $form.Add_Shown({
 })
 
 [void]$form.ShowDialog()
-
