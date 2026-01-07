@@ -9,6 +9,16 @@ param(
   [string]$ReleaseTag
 )
 
+function Read-SecretPlainText([string]$Prompt) {
+  $secure = Read-Host -AsSecureString $Prompt
+  $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
+  try {
+    return [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
+  } finally {
+    [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
+  }
+}
+
 Write-Output "Random threshold: $Prob"
 $rand = Get-Random -Maximum 100
 Write-Output "Random value: $rand"
@@ -18,7 +28,10 @@ if ($rand -ge $Prob) {
 if ($DryRun) { Write-Output "DRY RUN: would upload $Tarball"; exit 0 }
 
 if ($UploadUrl) {
-  if (-not $UploadToken) { Write-Error "UploadToken required for UploadUrl"; exit 1 }
+  if (-not $UploadToken) {
+    $UploadToken = Read-SecretPlainText "Enter UploadToken (will not be echoed)"
+    if (-not $UploadToken) { Write-Error "UploadToken required for UploadUrl"; exit 1 }
+  }
   Write-Output "Uploading $Tarball to $UploadUrl"
   try {
     $form = @{ file = Get-Item $Tarball }

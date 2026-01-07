@@ -28,7 +28,7 @@ Write-Host "=== Ventoy Payload Builder (Win11 Pro / Server 2025 / Ubuntu 24.04) 
 Write-Host "Output is a folder you copy to Ventoy USB partition #1."
 Write-Host ""
 
-$rootDefault = Join-Path $PWD.Path "VENTOY_PAYLOAD"
+$rootDefault = Join-Path $PWD.Path "bak\VENTOY_PAYLOAD"
 $root = Read-Host "Output folder [$rootDefault]"
 if([string]::IsNullOrWhiteSpace($root)){ $root = $rootDefault }
 
@@ -190,8 +190,24 @@ Write-Utf8NoBom (Join-Path $root "ventoy\script\ws2025_autounattend_alt.xml") $w
 
 # --- Ubuntu Server 24.04 autoinstall (Template #1) ---
 # Ventoy supports Ubuntu Server 20.x+ cloud-init user-data templates. :contentReference[oaicite:5]{index=5}
-# You MUST set a real password hash.
-$ubServer = @"
+# This script will PROMPT you for a password hash at runtime; no password is stored in this repo.
+function Read-RequiredUbuntuPasswordHash {
+  while ($true) {
+    $h = Read-Host "Enter Ubuntu autoinstall password hash (SHA-512 crypt; starts with $6$)"
+    if ([string]::IsNullOrWhiteSpace($h)) {
+      throw "Password hash is required. Re-run and provide a SHA-512 crypt hash (starts with $6$)."
+    }
+    if ($h -notmatch '^\$6\$') {
+      Write-Warning "Expected a SHA-512 crypt hash starting with $6$. Try again."
+      continue
+    }
+    return $h
+  }
+}
+
+$ubuntuPasswordHash = Read-RequiredUbuntuPasswordHash
+
+$ubServerTemplate = @'
 #cloud-config
 autoinstall:
   version: 1
@@ -200,9 +216,9 @@ autoinstall:
   identity:
     hostname: plm-ubuntu-server
     username: plm
-    # CHANGE THIS:
-      password: "meowmeowmeow"
-   ssh:
+    # NOTE: This output file will contain the password hash; treat it as sensitive and do not commit it.
+    password: "__PLM_PASSWORD_HASH__"
+  ssh:
     install-server: true
     allow-pw: true
 
@@ -216,7 +232,8 @@ autoinstall:
     - curtin in-target --target=/target -- bash -lc 'mkdir -p /opt/plm && git clone https://github.com/NetworkArchetype/PLM /opt/plm/PLM'
     - curtin in-target --target=/target -- bash -lc 'python3 -m pip install --upgrade pip && python3 -m pip install cirq'
     - curtin in-target --target=/target -- bash -lc 'python3 -c "import cirq; print(cirq.__version__)" > /root/cirq_version.txt'
-"@
+'@
+$ubServer = $ubServerTemplate -replace '__PLM_PASSWORD_HASH__', $ubuntuPasswordHash
 Write-Utf8NoBom (Join-Path $root "ventoy\script\ubuntu_server_2404_user-data") $ubServer
 
 # Ubuntu Server ALT: keep guided storage (no wipe) but still installs packages & PLM post-setup

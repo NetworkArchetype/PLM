@@ -2,7 +2,7 @@
 # scripts/upload_random_artifact.sh
 # Upload a tarball to an arbitrary HTTP endpoint or to a GitHub Release, with a random chance.
 # Usage:
-#   PROB=20 UPLOAD_URL=https://example.com/upload UPLOAD_TOKEN=token ./scripts/upload_random_artifact.sh 
+#   PROB=20 UPLOAD_URL=https://example.com/upload UPLOAD_TOKEN=... ./scripts/upload_random_artifact.sh
 #   or to upload to GitHub release (requires `gh` CLI and GH_TOKEN):
 #   PROB=100 RELEASE_TAG=v1.0 ./scripts/upload_random_artifact.sh
 
@@ -29,8 +29,14 @@ fi
 
 if [ -n "$UPLOAD_URL" ]; then
   if [ -z "$UPLOAD_TOKEN" ]; then
-    echo "UPLOAD_TOKEN is required for UPLOAD_URL"
-    exit 1
+    if [ -t 0 ]; then
+      read -r -s -p "Enter UPLOAD_TOKEN (won't echo): " UPLOAD_TOKEN
+      echo
+    fi
+    if [ -z "$UPLOAD_TOKEN" ]; then
+      echo "UPLOAD_TOKEN is required for UPLOAD_URL"
+      exit 1
+    fi
   fi
   echo "Uploading $TARBALL to $UPLOAD_URL"
   curl -f -X POST "$UPLOAD_URL" -H "Authorization: Bearer $UPLOAD_TOKEN" -F "file=@${TARBALL}" || { echo "Upload failed."; exit 1; }

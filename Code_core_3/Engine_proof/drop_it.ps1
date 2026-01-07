@@ -35,7 +35,7 @@ Write-Host "=== Ventoy Payload Generator (Windows + Ubuntu) ==="
 Write-Host "This creates a Ventoy-ready folder tree with auto-install templates + ventoy.json."
 Write-Host ""
 
-$root = Prompt-Path "Output directory to create VENTOY_PAYLOAD" (Join-Path $PWD.Path "VENTOY_PAYLOAD")
+$root = Prompt-Path "Output directory to create VENTOY_PAYLOAD" (Join-Path $PWD.Path "bak\VENTOY_PAYLOAD")
 $downloadUbuntu = (Read-Host "Download Ubuntu Server ISO automatically? (y/n) [n]").Trim().ToLower()
 if ($downloadUbuntu -ne "y") { $downloadUbuntu = "n" }
 
@@ -220,7 +220,17 @@ Write-FileUtf8NoBom (Join-Path $root "ventoy\script\windows_autounattend.xml") $
 # Ventoy supports Ubuntu Server 20.x+ cloud-init via Auto Install plugin. (Ventoy docs)
 # Ubuntu autoinstall is cloud-init based. (Ubuntu docs)
 # You MUST customize identity/password, storage layout, etc.
-$ubuntuUserData = @"
+$ubuntuPasswordHash = $null
+while (-not $ubuntuPasswordHash) {
+  $ubuntuPasswordHash = Read-Host "Enter Ubuntu autoinstall password hash (SHA-512 crypt; starts with $6$)"
+  if ([string]::IsNullOrWhiteSpace($ubuntuPasswordHash)) { $ubuntuPasswordHash = $null; continue }
+  if ($ubuntuPasswordHash -notmatch '^\$6\$') {
+    Write-Warning "Expected a SHA-512 crypt hash starting with $6$. Try again."
+    $ubuntuPasswordHash = $null
+  }
+}
+
+$ubuntuUserDataTemplate = @'
 #cloud-config
 autoinstall:
   version: 1
@@ -230,9 +240,8 @@ autoinstall:
   identity:
     hostname: plm-ubuntu
     username: plm
-    # Password is "plm" hashed example (CHANGE THIS).
-    # Generate with: python3 -c "import crypt; print(crypt.crypt('plm', crypt.mksalt(crypt.METHOD_SHA512)))"
-    password: "\$6\$CHANGE_ME\$CHANGE_ME_TOO"
+    # NOTE: This output file will contain the password hash; treat it as sensitive and do not commit it.
+    password: "__PLM_PASSWORD_HASH__"
   ssh:
     install-server: true
     allow-pw: true
@@ -250,7 +259,8 @@ autoinstall:
     - curtin in-target --target=/target -- bash -lc 'mkdir -p /opt/plm && git clone https://github.com/NetworkArchetype/PLM /opt/plm/PLM'
     - curtin in-target --target=/target -- bash -lc 'python3 -m pip install --upgrade pip && python3 -m pip install cirq'
     - curtin in-target --target=/target -- bash -lc 'python3 -c "import cirq; print(cirq.__version__)" > /root/cirq_version.txt'
-"@
+'@
+$ubuntuUserData = $ubuntuUserDataTemplate -replace '__PLM_PASSWORD_HASH__', $ubuntuPasswordHash
 Write-FileUtf8NoBom (Join-Path $root "ventoy\script\ubuntu_user-data") $ubuntuUserData
 
 $ubuntuMeta = @"

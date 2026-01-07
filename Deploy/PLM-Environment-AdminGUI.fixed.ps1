@@ -11,6 +11,16 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+# Predeclare $n to avoid StrictMode crashes if any event handler or profile code references it unexpectedly
+$script:n = $null
+# Predeclare $Name as well to guard against any late-bound references under StrictMode
+$script:Name = "unknown"
+
+$script:RepoRoot = Split-Path $PSScriptRoot -Parent
+$script:IsAdvancedMode = $false
+$script:SessionId = [guid]::NewGuid().ToString()
+$script:ContextPath = Join-Path $script:RepoRoot ".plm_session.ndjson"
+
 function Ensure-Admin {
   $id = [Security.Principal.WindowsIdentity]::GetCurrent()
   $p  = New-Object Security.Principal.WindowsPrincipal($id)
@@ -23,6 +33,18 @@ function Ensure-Admin {
 }
 Ensure-Admin
 
+# WinForms needs STA; if not STA, relaunch this script with -STA and same args
+function Ensure-STA {
+  $apartment = [System.Threading.Thread]::CurrentThread.ApartmentState
+  if ($apartment -ne "STA") {
+    $args = @("-NoProfile","-ExecutionPolicy","Bypass","-STA","-File",$PSCommandPath)
+    if ($DeployScriptPath) { $args += @("-DeployScriptPath", $DeployScriptPath) }
+    Start-Process powershell.exe -ArgumentList $args -Verb RunAs | Out-Null
+    exit 0
+  }
+}
+Ensure-STA
+
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
@@ -30,15 +52,185 @@ Add-Type -AssemblyName System.Drawing
 # Logging (defined after UI textbox exists, but keep helper)
 # -----------------------------
 $script:txtLog = $null
+$script:txtLogPopup = $null
+
+function Append-ContextLog([string]$msg) {
+  try {
+    $ts = (Get-Date).ToString("s")
+    $line = @{ ts = $ts; session = $script:SessionId; source = "gui"; user = $env:USERNAME; msg = $msg } | ConvertTo-Json -Compress
+    Add-Content -LiteralPath $script:ContextPath -Value $line
+    Write-StoreEvent -Kind "context" -Message $msg -Payload @{ ts = $ts; context = $msg }
+  } catch {}
+}
+
+function Write-StoreEvent {
+  param(
+    [string]$Kind,
+    [string]$Message,
+    $Payload
+  )
+  try {
+    $py = Get-PythonExe
+  } catch { $py = $null }
+  if (-not $py) { return }
+  $store = Join-Path $script:RepoRoot "scripts/plm_store.py"
+  if (-not (Test-Path $store)) { return }
+
+  $tmp = $null
+  try {
+    $args = @($py, $store, "log", "--engine", "auto", "--source", "gui", "--kind", $Kind, "--msg", $Message, "--session", $script:SessionId, "--user", $env:USERNAME)
+    if ($Payload) {
+      $tmp = [System.IO.Path]::GetTempFileName()
+      $Payload | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $tmp -Encoding UTF8
+      $args += @("--payload-file", $tmp)
+    }
+    & $args | Out-Null
+  } catch {
+    # logging should never block the GUI
+  } finally {
+    if ($tmp -and (Test-Path $tmp)) { Remove-Item $tmp -ErrorAction SilentlyContinue }
+  }
+}
+
+function Get-LastSessionInfo {
+  try {
+    if (-not (Test-Path $script:ContextPath)) { return $null }
+    $last = Get-Content -LiteralPath $script:ContextPath -Tail 1
+    if (-not $last) { return $null }
+    return ($last | ConvertFrom-Json)
+  } catch { return $null }
+}
+
+function Get-ContextTail([int]$Count = 120) {
+  if (-not (Test-Path $script:ContextPath)) { return @() }
+  try {
+    return (Get-Content -LiteralPath $script:ContextPath -Tail $Count | ForEach-Object {
+      try { $_ | ConvertFrom-Json } catch { $null }
+    }) | Where-Object { $_ }
+  } catch { return @() }
+}
+
+function Format-ContextEntry($entry) {
+  if (-not $entry) { return "" }
+  $ts = $entry.ts
+  $user = $(if ($entry.user) { $entry.user } else { "?" })
+  $src = $(if ($entry.source) { $entry.source } else { "?" })
+  $msg = $entry.msg
+  return "[$ts] ($user/$src) $msg"
+}
+
+function Build-PopupLogText {
+  $lines = @()
+  if ($script:txtLog) {
+    $lines += $script:txtLog.Text.TrimEnd("`r","`n").Split("`n")
+  }
+  $ctx = Get-ContextTail 80
+  if ($ctx.Count -gt 0) {
+    $lines += ""
+    $lines += "---- Shared context (last $($ctx.Count)) ----"
+    foreach ($c in $ctx) { $lines += (Format-ContextEntry $c) }
+  }
+  return ($lines -join "`r`n")
+}
+
+function Sync-PopupLog {
+  if (-not $script:txtLogPopup) { return }
+  $text = Build-PopupLogText
+  $script:txtLogPopup.TextBox.Text = $text
+  $script:txtLogPopup.TextBox.SelectionStart = $script:txtLogPopup.TextBox.TextLength
+  $script:txtLogPopup.TextBox.ScrollToCaret()
+}
+
+function Check-Collision([int]$Minutes = 30) {
+  $tail = Get-ContextTail 200
+  if (-not $tail -or $tail.Count -eq 0) { return }
+  $cutoff = (Get-Date).AddMinutes(-$Minutes)
+  $hits = @()
+  foreach ($e in $tail) {
+    try {
+      if (-not $e.ts) { continue }
+      $dt = [datetime]::Parse($e.ts)
+      if ($dt -lt $cutoff) { continue }
+      $user = $(if ($e.user) { $e.user } else { "?" })
+      if ($user -ne $env:USERNAME -or ($e.session -and $e.session -ne $script:SessionId)) {
+        $hits += $e
+      }
+    } catch {}
+  }
+  if ($hits.Count -gt 0) {
+    $latest = $hits[-1]
+    $u = $(if ($latest.user) { $latest.user } else { "unknown" })
+    $t = $latest.ts
+    Log "Heads-up: another session ($u) active recently at $t."
+    # Do not block with a message box; allow multiple instances without modal dialogs
+  }
+}
+
+function Sanitize-LogMessage([string]$msg) {
+  if (-not $msg) { return $msg }
+
+  $out = $msg
+  # Common token/key patterns
+  $out = $out -replace '\bghp_[A-Za-z0-9]{36}\b', 'ghp_REDACTED'
+  $out = $out -replace '\bgithub_pat_[A-Za-z0-9_]{20,}\b', 'github_pat_REDACTED'
+  $out = $out -replace '(?i)\bBearer\s+[A-Za-z0-9\-_.=]{12,}\b', 'Bearer REDACTED'
+  $out = $out -replace '(?i)\b(Authorization\s*:\s*Bearer)\s+\S+', '$1 REDACTED'
+  # Common assignment forms (best-effort; avoids logging real values)
+  $out = $out -replace '(?i)\b(password|passwd|pwd)\b\s*[:=]\s*[^\s;]+', '$1=REDACTED'
+  $out = $out -replace '(?i)\b(token|secret|api[_-]?key|client_secret)\b\s*[:=]\s*[^\s;]+', '$1=REDACTED'
+  return $out
+}
+
 function Log([string]$msg) {
   $ts = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
+  $msg = Sanitize-LogMessage $msg
+    Append-ContextLog $msg
   if ($script:txtLog) {
     $script:txtLog.AppendText("[$ts] $msg`r`n")
     $script:txtLog.SelectionStart = $script:txtLog.TextLength
     $script:txtLog.ScrollToCaret()
+    if ($script:txtLogPopup) {
+      $script:txtLogPopup.TextBox.AppendText("[$ts] $msg`r`n")
+      $script:txtLogPopup.TextBox.SelectionStart = $script:txtLogPopup.TextBox.TextLength
+      $script:txtLogPopup.TextBox.ScrollToCaret()
+    }
   } else {
     Write-Host "[$ts] $msg"
   }
+}
+
+# Helper to wrap UI actions and avoid unhandled exceptions bringing down the form
+function Invoke-UiAction {
+  param(
+    [string]$Name = "unknown",
+    [ScriptBlock]$Action
+  )
+  # Suppress StrictMode inside handler execution to avoid crashes on any unexpected late-bound vars
+  Set-StrictMode -Off
+  $label = $(if ($PSBoundParameters.ContainsKey('Name') -and $Name) { $Name } else { "unknown" })
+  try {
+    Log "Action '$label' starting..."
+    Write-StoreEvent -Kind "ui" -Message "gui:$label:start" -Payload @{}
+    & $Action
+    Write-StoreEvent -Kind "ui" -Message "gui:$label:ok" -Payload @{}
+  } catch {
+    $err = $_.Exception.Message
+    Log "Action '$label' failed: $err"
+    Write-StoreEvent -Kind "ui" -Message "gui:$label:fail" -Payload @{ error = $err }
+    [System.Windows.Forms.MessageBox]::Show("Action '$label' failed: $err","Action failed",[System.Windows.Forms.MessageBoxButtons]::OK,[System.Windows.Forms.MessageBoxIcon]::Error) | Out-Null
+  }
+}
+
+function Wrap-UiAction {
+  param(
+    [string]$Name = "unknown",
+    [ScriptBlock]$Action
+  )
+  # Capture fixed values into a closure to avoid unbound variables at handler runtime
+  $label = if ($PSBoundParameters.ContainsKey('Name') -and $Name) { $Name } else { "unknown" }
+  $localAction = $Action.GetNewClosure()
+  $localLabel = $label
+  return ({ param($sender,$eventArgs) Invoke-UiAction -Name $localLabel -Action $localAction }).GetNewClosure()
 }
 
 function Exists-Cmd([string]$name) { return [bool](Get-Command $name -ErrorAction SilentlyContinue) }
@@ -208,11 +400,12 @@ function Detect-Environment {
     Docker         = Detect-DockerDesktop
     HyperV         = Detect-HyperVEnabled
     NvidiaSMI      = Exists-Cmd "nvidia-smi"
+    CUDA           = Exists-Cmd "nvcc"
   }
   return $state
 }
 
-function Status-Color([bool]$ok) {
+function Status-Color($ok) {
   if ($ok) { return [System.Drawing.Color]::FromArgb(0,140,0) }
   return [System.Drawing.Color]::FromArgb(180,0,0)
 }
@@ -228,6 +421,7 @@ $script:lblUbuntuValue = $null
 $script:lblDockerValue = $null
 $script:lblHyperVValue = $null
 $script:lblNvidiaValue = $null
+$script:lblCUDAValue = $null
 
 function Render-Status($s) {
   $script:lblWingetValue.ForeColor = Status-Color $s.Winget
@@ -259,6 +453,137 @@ function Render-Status($s) {
 
   $script:lblNvidiaValue.ForeColor = Status-Color $s.NvidiaSMI
   $script:lblNvidiaValue.Text      = $(if ($s.NvidiaSMI){"OK"} else {"Not found"})
+
+  if ($script:lblCUDAValue) {
+    $script:lblCUDAValue.ForeColor = Status-Color $s.CUDA
+    $script:lblCUDAValue.Text      = $(if ($s.CUDA){"OK"} else {"Not found"})
+  }
+}
+
+# -----------------------------
+# Diagnostics helpers
+# -----------------------------
+function Set-AdvancedMode([bool]$enable) {
+  $script:IsAdvancedMode = $enable
+  if ($enable) {
+    Log "Advanced debug mode (option 2) enabled: full pytest + deep probes will be allowed."
+  } else {
+    Log "Guided mode enabled: use quick smoke + safe actions."
+  }
+}
+
+function Get-PythonExe {
+  $candidates = @(
+    (Join-Path $RepoRoot "venv\\Scripts\\python.exe"),
+    "python"
+  )
+  foreach ($c in $candidates) {
+    if (Test-Path $c -or (Exists-Cmd $c)) { return $c }
+  }
+  return $null
+}
+
+function Run-SmokeTest([switch]$Full) {
+  $python = Get-PythonExe
+  if (-not $python) { Log "Python not found. Click Install/Repair first."; return }
+
+  $label = $(if ($Full) { "Full pytest suite" } else { "Quick smoke test (test_installation.py)" })
+  Log "Running $label using: $python"
+
+  Push-Location $RepoRoot
+  try {
+    if ($Full) {
+      & $python -m pytest 2>&1 | ForEach-Object { Log $_ }
+    } else {
+      & $python test_installation.py 2>&1 | ForEach-Object { Log $_ }
+    }
+    Log "Diagnostics finished (exit code: $LASTEXITCODE)."
+    Append-ContextLog "diag:exit=$LASTEXITCODE full=$Full"
+    Write-StoreEvent -Kind "diagnostic" -Message "gui:smoke" -Payload @{ exit_code = $LASTEXITCODE; full = [bool]$Full }
+  } catch {
+    Log "Diagnostics run failed: $($_.Exception.Message)"
+    Append-ContextLog "diag:error=$($_.Exception.Message)"
+    Write-StoreEvent -Kind "diagnostic" -Message "gui:smoke:error" -Payload @{ error = $($_.Exception.Message); full = [bool]$Full }
+  } finally {
+    Pop-Location
+  }
+}
+
+function Run-CUDADiagnostics {
+  Log "Running CUDA / GPU probe..."
+  if (-not (Exists-Cmd "nvidia-smi")) { Log "nvidia-smi not found. Install NVIDIA drivers."; return }
+  try {
+    $gpu = Get-CimInstance Win32_VideoController | Where-Object { $_.Name -like "*NVIDIA*" } | Select-Object -First 1
+    if ($gpu) { Log "Detected GPU: $($gpu.Name)" } else { Log "No NVIDIA GPU detected." }
+  } catch { Log "GPU detection error: $($_.Exception.Message)" }
+
+  if (Exists-Cmd "nvcc") {
+    try {
+      $nvccVersion = & nvcc --version 2>$null | Select-String "release" | ForEach-Object { $_.Line }
+      Log "nvcc: $nvccVersion"
+    } catch { Log "nvcc query failed: $($_.Exception.Message)" }
+  } else {
+    Log "CUDA toolkit (nvcc) not found."
+  }
+
+  try {
+    $smi = & nvidia-smi --query-gpu=name,memory.total,memory.free --format=csv,noheader,nounits 2>$null
+    Log "GPU Info: $smi"
+  } catch { Log "nvidia-smi query failed: $($_.Exception.Message)" }
+  Log "CUDA probe complete."
+  Append-ContextLog "cuda-probe-done"
+  Write-StoreEvent -Kind "probe" -Message "gui:cuda" -Payload @{ gpu = $gpu; nvcc = $nvccVersion; smi = $smi }
+}
+
+function Run-EnvReport {
+  Log "Collecting environment report..."
+  $s = Detect-Environment
+  Render-Status $s
+  $report = $s.GetEnumerator() | ForEach-Object { "{0}={1}" -f $_.Key,$_.Value }
+  Log ("Env: " + ($report -join "; "))
+}
+
+function Export-DebugReport {
+  $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
+  $path = Join-Path ([System.IO.Path]::GetTempPath()) "plm-debug-$stamp.log"
+  $lines = @()
+  $lines += "PLM Debug Report $stamp"
+  $lines += "Repo: $RepoRoot"
+  $lines += "AdvancedMode: $script:IsAdvancedMode"
+  $lines += ""
+  $state = Detect-Environment
+  $lines += "Environment:" + ($state.GetEnumerator() | ForEach-Object { " {0}={1}" -f $_.Key,$_.Value }) -join ""
+  $lines += ""
+  try {
+    $python = Get-PythonExe
+    if ($python) { $lines += "Python: $python" }
+    Push-Location $RepoRoot
+    try {
+      $pipLine = & $python -m pip show plm-formalized 2>$null | Out-String
+      if ($pipLine) { $lines += "plm-formalized:`n$($pipLine.Trim())" }
+    } catch {}
+  } finally { Pop-Location }
+  $lines += ""
+  $lines | Out-File -FilePath $path -Encoding utf8
+  Log "Debug report written: $path"
+}
+
+function Open-DebugConsole([switch]$ActivateVenv) {
+  $activateCmd = ""
+  $venvActivate = Join-Path $RepoRoot "venv\\Scripts\\Activate.ps1"
+  if ($ActivateVenv -and (Test-Path $venvActivate)) { $activateCmd = ". '$venvActivate'; " }
+  $cmd = "& { Set-Location -LiteralPath '$RepoRoot'; $activateCmd Write-Host 'PLM debug console ready at $RepoRoot'; }"
+  Start-Process powershell.exe -ArgumentList "-NoExit","-ExecutionPolicy","Bypass","-Command",$cmd | Out-Null
+  Log "Opened debug console (venv activated: $ActivateVenv)"
+}
+
+function Open-ResourceMonitor {
+  try {
+    Start-Process perfmon.exe -ArgumentList "/res" | Out-Null
+    Log "Opened Windows Resource Monitor."
+  } catch {
+    Log "Failed to open Resource Monitor: $($_.Exception.Message)"
+  }
 }
 
 # -----------------------------
@@ -339,14 +664,14 @@ function Do-OpenHyperVManager {
   }
 }
 function Do-CreateHyperVSandboxNote {
-  $msg = @"
-Hyper-V Sandbox Mode (GUI):
-- Click 'Open Hyper-V' to create/manage a VM.
-- Install Windows/Ubuntu in the VM from an ISO.
-- Run Deploy-PLM-Environment.ps1 inside the VM for an isolated sandbox.
-
-Tip: Docker + WSL are the fastest sandboxes; Hyper-V is full OS isolation.
-"@
+  $msg = @(
+    "Hyper-V Sandbox Mode (GUI):",
+    "- Click 'Open Hyper-V' to create/manage a VM.",
+    "- Install Windows/Ubuntu in the VM from an ISO.",
+    "- Run Deploy-PLM-Environment.ps1 inside the VM for an isolated sandbox.",
+    "",
+    "Tip: Docker + WSL are the fastest sandboxes; Hyper-V is full OS isolation."
+  ) -join "`r`n"
   [System.Windows.Forms.MessageBox]::Show($msg, "Hyper-V Sandbox Help",
     [System.Windows.Forms.MessageBoxButtons]::OK,
     [System.Windows.Forms.MessageBoxIcon]::Information) | Out-Null
@@ -364,42 +689,120 @@ $font = New-Object System.Drawing.Font("Segoe UI", 10)
 
 $pTop = New-Object System.Windows.Forms.Panel
 $pTop.Dock = "Top"
-$pTop.Height = 260
+$pTop.Height = 300
 $form.Controls.Add($pTop)
 
 $grpStatus = New-Object System.Windows.Forms.GroupBox
 $grpStatus.Text = "Environment Detection"
 $grpStatus.Font = $font
 $grpStatus.Location = New-Object System.Drawing.Point(12, 10)
-$grpStatus.Size = New-Object System.Drawing.Size(520, 240)
+$grpStatus.Size = New-Object System.Drawing.Size(520, 270)
 $pTop.Controls.Add($grpStatus)
-function Add-StatusRow($parent, $label, $y, [ref]$valueLabel) {
-  $lbl = New-Object System.Windows.Forms.Label
-  $lbl.Text = $label
-  $lbl.Location = New-Object System.Drawing.Point(16, $y)
-  $lbl.Size = New-Object System.Drawing.Size(210, 22)
-  $lbl.Font = $font
-  $parent.Controls.Add($lbl)
 
-  $val = New-Object System.Windows.Forms.Label
-  $val.Text = "—"
-  $val.Location = New-Object System.Drawing.Point(240, $y)
-  $val.Size = New-Object System.Drawing.Size(240, 22)
-  $val.Font = $font
-  $parent.Controls.Add($val)
+# Status rows (expanded inline to avoid parser issues). ASCII only to dodge encoding glitches.
+$lblWinget = New-Object System.Windows.Forms.Label
+$lblWinget.Text = "winget"
+$lblWinget.Location = New-Object System.Drawing.Point(16, 30)
+$lblWinget.Size = New-Object System.Drawing.Size(210, 22)
+$lblWinget.Font = $font
+$grpStatus.Controls.Add($lblWinget)
+$script:lblWingetValue = New-Object System.Windows.Forms.Label
+$script:lblWingetValue.Text = "-"
+$script:lblWingetValue.Location = New-Object System.Drawing.Point(240, 30)
+$script:lblWingetValue.Size = New-Object System.Drawing.Size(240, 22)
+$script:lblWingetValue.Font = $font
+$grpStatus.Controls.Add($script:lblWingetValue)
 
-  $valueLabel.Value = $val
-}
+$lblGit = New-Object System.Windows.Forms.Label
+$lblGit.Text = "Git"
+$lblGit.Location = New-Object System.Drawing.Point(16, 55)
+$lblGit.Size = New-Object System.Drawing.Size(210, 22)
+$lblGit.Font = $font
+$grpStatus.Controls.Add($lblGit)
+$script:lblGitValue = New-Object System.Windows.Forms.Label
+$script:lblGitValue.Text = "-"
+$script:lblGitValue.Location = New-Object System.Drawing.Point(240, 55)
+$script:lblGitValue.Size = New-Object System.Drawing.Size(240, 22)
+$script:lblGitValue.Font = $font
+$grpStatus.Controls.Add($script:lblGitValue)
 
-# IMPORTANT: keep each call on ONE LINE (your original parse error)
-Add-StatusRow $grpStatus "winget"               30 ([ref]$script:lblWingetValue)
-Add-StatusRow $grpStatus "Git"                  55 ([ref]$script:lblGitValue)
-Add-StatusRow $grpStatus "Python"               80 ([ref]$script:lblPythonValue)
-Add-StatusRow $grpStatus "VS Code (any version)"105 ([ref]$script:lblVSCodeValue)
-Add-StatusRow $grpStatus "Windows Terminal"     130 ([ref]$script:lblWTValue)
-Add-StatusRow $grpStatus "WSL2 Features"        155 ([ref]$script:lblWSLFeatValue)
-Add-StatusRow $grpStatus "Ubuntu (WSL distro)"  180 ([ref]$script:lblUbuntuValue)
-Add-StatusRow $grpStatus "Docker Desktop"       205 ([ref]$script:lblDockerValue)
+$lblPython = New-Object System.Windows.Forms.Label
+$lblPython.Text = "Python"
+$lblPython.Location = New-Object System.Drawing.Point(16, 80)
+$lblPython.Size = New-Object System.Drawing.Size(210, 22)
+$lblPython.Font = $font
+$grpStatus.Controls.Add($lblPython)
+$script:lblPythonValue = New-Object System.Windows.Forms.Label
+$script:lblPythonValue.Text = "-"
+$script:lblPythonValue.Location = New-Object System.Drawing.Point(240, 80)
+$script:lblPythonValue.Size = New-Object System.Drawing.Size(240, 22)
+$script:lblPythonValue.Font = $font
+$grpStatus.Controls.Add($script:lblPythonValue)
+
+$lblVSCode = New-Object System.Windows.Forms.Label
+$lblVSCode.Text = "VS Code (any version)"
+$lblVSCode.Location = New-Object System.Drawing.Point(16, 105)
+$lblVSCode.Size = New-Object System.Drawing.Size(210, 22)
+$lblVSCode.Font = $font
+$grpStatus.Controls.Add($lblVSCode)
+$script:lblVSCodeValue = New-Object System.Windows.Forms.Label
+$script:lblVSCodeValue.Text = "-"
+$script:lblVSCodeValue.Location = New-Object System.Drawing.Point(240, 105)
+$script:lblVSCodeValue.Size = New-Object System.Drawing.Size(240, 22)
+$script:lblVSCodeValue.Font = $font
+$grpStatus.Controls.Add($script:lblVSCodeValue)
+
+$lblWT = New-Object System.Windows.Forms.Label
+$lblWT.Text = "Windows Terminal"
+$lblWT.Location = New-Object System.Drawing.Point(16, 130)
+$lblWT.Size = New-Object System.Drawing.Size(210, 22)
+$lblWT.Font = $font
+$grpStatus.Controls.Add($lblWT)
+$script:lblWTValue = New-Object System.Windows.Forms.Label
+$script:lblWTValue.Text = "-"
+$script:lblWTValue.Location = New-Object System.Drawing.Point(240, 130)
+$script:lblWTValue.Size = New-Object System.Drawing.Size(240, 22)
+$script:lblWTValue.Font = $font
+$grpStatus.Controls.Add($script:lblWTValue)
+
+$lblWSLFeat = New-Object System.Windows.Forms.Label
+$lblWSLFeat.Text = "WSL2 Features"
+$lblWSLFeat.Location = New-Object System.Drawing.Point(16, 155)
+$lblWSLFeat.Size = New-Object System.Drawing.Size(210, 22)
+$lblWSLFeat.Font = $font
+$grpStatus.Controls.Add($lblWSLFeat)
+$script:lblWSLFeatValue = New-Object System.Windows.Forms.Label
+$script:lblWSLFeatValue.Text = "-"
+$script:lblWSLFeatValue.Location = New-Object System.Drawing.Point(240, 155)
+$script:lblWSLFeatValue.Size = New-Object System.Drawing.Size(240, 22)
+$script:lblWSLFeatValue.Font = $font
+$grpStatus.Controls.Add($script:lblWSLFeatValue)
+
+$lblUbuntu = New-Object System.Windows.Forms.Label
+$lblUbuntu.Text = "Ubuntu (WSL distro)"
+$lblUbuntu.Location = New-Object System.Drawing.Point(16, 180)
+$lblUbuntu.Size = New-Object System.Drawing.Size(210, 22)
+$lblUbuntu.Font = $font
+$grpStatus.Controls.Add($lblUbuntu)
+$script:lblUbuntuValue = New-Object System.Windows.Forms.Label
+$script:lblUbuntuValue.Text = "-"
+$script:lblUbuntuValue.Location = New-Object System.Drawing.Point(240, 180)
+$script:lblUbuntuValue.Size = New-Object System.Drawing.Size(240, 22)
+$script:lblUbuntuValue.Font = $font
+$grpStatus.Controls.Add($script:lblUbuntuValue)
+
+$lblDocker = New-Object System.Windows.Forms.Label
+$lblDocker.Text = "Docker Desktop"
+$lblDocker.Location = New-Object System.Drawing.Point(16, 205)
+$lblDocker.Size = New-Object System.Drawing.Size(210, 22)
+$lblDocker.Font = $font
+$grpStatus.Controls.Add($lblDocker)
+$script:lblDockerValue = New-Object System.Windows.Forms.Label
+$script:lblDockerValue.Text = "-"
+$script:lblDockerValue.Location = New-Object System.Drawing.Point(240, 205)
+$script:lblDockerValue.Size = New-Object System.Drawing.Size(240, 22)
+$script:lblDockerValue.Font = $font
+$grpStatus.Controls.Add($script:lblDockerValue)
 
 # Nvidia row (extra)
 $lblNvidiaTitle = New-Object System.Windows.Forms.Label
@@ -410,14 +813,29 @@ $lblNvidiaTitle.Font = $font
 $grpStatus.Controls.Add($lblNvidiaTitle)
 
 $script:lblNvidiaValue = New-Object System.Windows.Forms.Label
-$script:lblNvidiaValue.Text = "—"
+$script:lblNvidiaValue.Text = "-"
 $script:lblNvidiaValue.Location = New-Object System.Drawing.Point(240, 230)
 $script:lblNvidiaValue.Size = New-Object System.Drawing.Size(240, 22)
 $script:lblNvidiaValue.Font = $font
 $grpStatus.Controls.Add($script:lblNvidiaValue)
 
+# CUDA row (nvcc)
+$lblCUDATitle = New-Object System.Windows.Forms.Label
+$lblCUDATitle.Text = "CUDA Toolkit (nvcc)"
+$lblCUDATitle.Location = New-Object System.Drawing.Point(16, 255)
+$lblCUDATitle.Size = New-Object System.Drawing.Size(210, 22)
+$lblCUDATitle.Font = $font
+$grpStatus.Controls.Add($lblCUDATitle)
+
+$script:lblCUDAValue = New-Object System.Windows.Forms.Label
+$script:lblCUDAValue.Text = "-"
+$script:lblCUDAValue.Location = New-Object System.Drawing.Point(240, 255)
+$script:lblCUDAValue.Size = New-Object System.Drawing.Size(240, 22)
+$script:lblCUDAValue.Font = $font
+$grpStatus.Controls.Add($script:lblCUDAValue)
+
 $grpActions = New-Object System.Windows.Forms.GroupBox
-$grpActions.Text = "Actions & Modes"
+$grpActions.Text = "Actions and Modes"
 $grpActions.Font = $font
 $grpActions.Location = New-Object System.Drawing.Point(548, 10)
 $grpActions.Size = New-Object System.Drawing.Size(520, 240)
@@ -474,6 +892,113 @@ $btnRunDeploy.Size = New-Object System.Drawing.Size(120, 34)
 $btnRunDeploy.Font = $font
 $grpActions.Controls.Add($btnRunDeploy)
 
+# Diagnostics panel (sits between actions and log)
+$pDiag = New-Object System.Windows.Forms.Panel
+$pDiag.Dock = "Top"
+$pDiag.Height = 150
+$form.Controls.Add($pDiag)
+
+$grpDiag = New-Object System.Windows.Forms.GroupBox
+$grpDiag.Text = "Diagnostics and Debug"
+$grpDiag.Font = $font
+$grpDiag.Location = New-Object System.Drawing.Point(12, 0)
+$grpDiag.Size = New-Object System.Drawing.Size(520, 140)
+$pDiag.Controls.Add($grpDiag)
+
+$lblUserMode = New-Object System.Windows.Forms.Label
+$lblUserMode.Text = "User mode:"
+$lblUserMode.Location = New-Object System.Drawing.Point(16, 28)
+$lblUserMode.Size = New-Object System.Drawing.Size(90, 22)
+$lblUserMode.Font = $font
+$grpDiag.Controls.Add($lblUserMode)
+
+$cmbUserMode = New-Object System.Windows.Forms.ComboBox
+$cmbUserMode.Location = New-Object System.Drawing.Point(110, 26)
+$cmbUserMode.Size = New-Object System.Drawing.Size(180, 28)
+$cmbUserMode.Font = $font
+$cmbUserMode.DropDownStyle = "DropDownList"
+[void]$cmbUserMode.Items.Add("Guided (easy)")
+[void]$cmbUserMode.Items.Add("Advanced debug (option 2)")
+$cmbUserMode.SelectedIndex = 0
+$grpDiag.Controls.Add($cmbUserMode)
+
+$btnSmoke = New-Object System.Windows.Forms.Button
+$btnSmoke.Text = "Run smoke test"
+$btnSmoke.Location = New-Object System.Drawing.Point(16, 70)
+$btnSmoke.Size = New-Object System.Drawing.Size(140, 32)
+$btnSmoke.Font = $font
+$grpDiag.Controls.Add($btnSmoke)
+
+$btnPytest = New-Object System.Windows.Forms.Button
+$btnPytest.Text = "Run full pytest (opt 2)"
+$btnPytest.Location = New-Object System.Drawing.Point(166, 70)
+$btnPytest.Size = New-Object System.Drawing.Size(180, 32)
+$btnPytest.Font = $font
+$grpDiag.Controls.Add($btnPytest)
+
+$btnCudaProbe = New-Object System.Windows.Forms.Button
+$btnCudaProbe.Text = "Probe CUDA/GPU"
+$btnCudaProbe.Location = New-Object System.Drawing.Point(356, 70)
+$btnCudaProbe.Size = New-Object System.Drawing.Size(150, 32)
+$btnCudaProbe.Font = $font
+$grpDiag.Controls.Add($btnCudaProbe)
+
+$btnEnvReport = New-Object System.Windows.Forms.Button
+$btnEnvReport.Text = "Refresh env report"
+$btnEnvReport.Location = New-Object System.Drawing.Point(16, 106)
+$btnEnvReport.Size = New-Object System.Drawing.Size(200, 28)
+$btnEnvReport.Font = $font
+$grpDiag.Controls.Add($btnEnvReport)
+
+$grpDebug = New-Object System.Windows.Forms.GroupBox
+$grpDebug.Text = "Consoles and Reports"
+$grpDebug.Font = $font
+$grpDebug.Location = New-Object System.Drawing.Point(548, 0)
+$grpDebug.Size = New-Object System.Drawing.Size(520, 140)
+$pDiag.Controls.Add($grpDebug)
+
+$btnDebugConsole = New-Object System.Windows.Forms.Button
+$btnDebugConsole.Text = "Open debug console"
+$btnDebugConsole.Location = New-Object System.Drawing.Point(16, 28)
+$btnDebugConsole.Size = New-Object System.Drawing.Size(180, 32)
+$btnDebugConsole.Font = $font
+$grpDebug.Controls.Add($btnDebugConsole)
+
+$btnVenvConsole = New-Object System.Windows.Forms.Button
+$btnVenvConsole.Text = "Option 2 console (venv)"
+$btnVenvConsole.Location = New-Object System.Drawing.Point(206, 28)
+$btnVenvConsole.Size = New-Object System.Drawing.Size(180, 32)
+$btnVenvConsole.Font = $font
+$grpDebug.Controls.Add($btnVenvConsole)
+
+$btnExportReport = New-Object System.Windows.Forms.Button
+$btnExportReport.Text = "Export debug report"
+$btnExportReport.Location = New-Object System.Drawing.Point(396, 28)
+$btnExportReport.Size = New-Object System.Drawing.Size(110, 32)
+$btnExportReport.Font = $font
+$grpDebug.Controls.Add($btnExportReport)
+
+$btnMonitor = New-Object System.Windows.Forms.Button
+$btnMonitor.Text = "Open Resource Monitor"
+$btnMonitor.Location = New-Object System.Drawing.Point(16, 70)
+$btnMonitor.Size = New-Object System.Drawing.Size(200, 32)
+$btnMonitor.Font = $font
+$grpDebug.Controls.Add($btnMonitor)
+
+$btnPopLog = New-Object System.Windows.Forms.Button
+$btnPopLog.Text = "Pop-out log window"
+$btnPopLog.Location = New-Object System.Drawing.Point(226, 70)
+$btnPopLog.Size = New-Object System.Drawing.Size(180, 32)
+$btnPopLog.Font = $font
+$grpDebug.Controls.Add($btnPopLog)
+
+$btnDocs = New-Object System.Windows.Forms.Button
+$btnDocs.Text = "Help / Docs"
+$btnDocs.Location = New-Object System.Drawing.Point(416, 70)
+$btnDocs.Size = New-Object System.Drawing.Size(90, 32)
+$btnDocs.Font = $font
+$grpDebug.Controls.Add($btnDocs)
+
 # Mode selector
 $lblMode = New-Object System.Windows.Forms.Label
 $lblMode.Text = "Run Mode:"
@@ -503,7 +1028,7 @@ $lblHyperV.Font = $font
 $grpActions.Controls.Add($lblHyperV)
 
 $script:lblHyperVValue = New-Object System.Windows.Forms.Label
-$script:lblHyperVValue.Text = "—"
+$script:lblHyperVValue.Text = "-"
 $script:lblHyperVValue.Location = New-Object System.Drawing.Point(380, 120)
 $script:lblHyperVValue.Size = New-Object System.Drawing.Size(130, 22)
 $script:lblHyperVValue.Font = $font
@@ -552,6 +1077,13 @@ $btnHyperVNote.Size = New-Object System.Drawing.Size(70, 30)
 $btnHyperVNote.Font = $font
 $grpActions.Controls.Add($btnHyperVNote)
 
+$btnLaunchCLI = New-Object System.Windows.Forms.Button
+$btnLaunchCLI.Text = "Switch to CLI"
+$btnLaunchCLI.Location = New-Object System.Drawing.Point(16, 196)
+$btnLaunchCLI.Size = New-Object System.Drawing.Size(110, 30)
+$btnLaunchCLI.Font = $font
+$grpActions.Controls.Add($btnLaunchCLI)
+
 # Log box
 $script:txtLog = New-Object System.Windows.Forms.TextBox
 $script:txtLog.Multiline = $true
@@ -564,7 +1096,7 @@ $form.Controls.Add($script:txtLog)
 # -----------------------------
 # Events
 # -----------------------------
-$btnPickDeploy.Add_Click({
+$btnPickDeploy.Add_Click( (Wrap-UiAction -Name "pick-deploy" -Action {
   $dlg = New-Object System.Windows.Forms.OpenFileDialog
   $dlg.Filter = "PowerShell Scripts (*.ps1)|*.ps1|All Files (*.*)|*.*"
   $dlg.Title = "Select Deploy-PLM-Environment.ps1"
@@ -573,45 +1105,115 @@ $btnPickDeploy.Add_Click({
     $txtDeploy.Text = $DeployScriptPath
     Log "Deploy script set: $DeployScriptPath"
   }
-})
+}))
 
-$btnDetect.Add_Click({
+$btnDetect.Add_Click( (Wrap-UiAction -Name "detect" -Action {
   Log "Detecting environment..."
   $s = Detect-Environment
   Render-Status $s
-  Log ("Detected: " + (($s.GetEnumerator() | ForEach-Object { "$($_.Key)=$($_.Value)" }) -join "; "))
-})
+  Write-StoreEvent -Kind "env" -Message "gui:env" -Payload $s
+  Log ("Detected: " + (($s.GetEnumerator() | ForEach-Object { "$( $_.Key)=$( $_.Value)" }) -join "; "))
+}))
 
-$btnInstallRepair.Add_Click({ Do-InstallOrRepair })
-$btnUpdate.Add_Click({ Do-Update })
+$cmbUserMode.Add_SelectedIndexChanged( (Wrap-UiAction -Name "user-mode" -Action {
+  $adv = ($cmbUserMode.SelectedIndex -eq 1)
+  Set-AdvancedMode $adv
+}))
 
-$btnRunDeploy.Add_Click({
+$btnSmoke.Add_Click( (Wrap-UiAction -Name "smoke" -Action { Run-SmokeTest }) )
+
+$btnPytest.Add_Click( (Wrap-UiAction -Name "pytest" -Action {
+  if (-not $script:IsAdvancedMode) {
+    $res = [System.Windows.Forms.MessageBox]::Show(
+      "Full pytest is intended for advanced/option 2 users. Switch to advanced mode and continue?",
+      "Advanced run",
+      [System.Windows.Forms.MessageBoxButtons]::YesNo,
+      [System.Windows.Forms.MessageBoxIcon]::Question
+    )
+    if ($res -ne [System.Windows.Forms.DialogResult]::Yes) { return }
+    $cmbUserMode.SelectedIndex = 1
+    Set-AdvancedMode $true
+  }
+  Run-SmokeTest -Full
+}))
+
+$btnCudaProbe.Add_Click( (Wrap-UiAction -Name "cuda-probe" -Action { Run-CUDADiagnostics }) )
+$btnEnvReport.Add_Click( (Wrap-UiAction -Name "env-report" -Action { Run-EnvReport }) )
+
+$btnDebugConsole.Add_Click( (Wrap-UiAction -Name "debug-console" -Action { Open-DebugConsole }) )
+$btnVenvConsole.Add_Click( (Wrap-UiAction -Name "venv-console" -Action { Open-DebugConsole -ActivateVenv }) )
+$btnExportReport.Add_Click( (Wrap-UiAction -Name "export-report" -Action { Export-DebugReport }) )
+$btnMonitor.Add_Click( (Wrap-UiAction -Name "resource-monitor" -Action { Open-ResourceMonitor }) )
+$btnPopLog.Add_Click( (Wrap-UiAction -Name "pop-log" -Action {
+  if (-not $script:txtLogPopup) {
+    $popup = New-Object System.Windows.Forms.Form
+    $popup.Text = "PLM Log (pop-out)"
+    $popup.Size = New-Object System.Drawing.Size(900, 500)
+    $popup.StartPosition = "CenterParent"
+    $txt = New-Object System.Windows.Forms.TextBox
+    $txt.Multiline = $true
+    $txt.ReadOnly = $true
+    $txt.ScrollBars = "Vertical"
+    $txt.Dock = "Fill"
+    $txt.Font = New-Object System.Drawing.Font("Consolas", 10)
+    $popup.Controls.Add($txt)
+    $script:txtLogPopup = @{ Form = $popup; TextBox = $txt }
+  }
+  Sync-PopupLog
+  $script:txtLogPopup.Form.ShowDialog() | Out-Null
+}))
+
+$btnDocs.Add_Click( (Wrap-UiAction -Name "docs" -Action {
+  $docPath = Join-Path $script:RepoRoot "docs/Admin-GUI-and-CLI-Guide.md"
+  if (Test-Path $docPath) {
+    Start-Process $docPath | Out-Null
+    Log "Opened operator guide."
+  } else {
+    Log "Operator guide not found."
+  }
+}))
+
+$btnInstallRepair.Add_Click( (Wrap-UiAction -Name "install-repair" -Action { Do-InstallOrRepair }) )
+$btnUpdate.Add_Click( (Wrap-UiAction -Name "update" -Action { Do-Update }) )
+
+$btnRunDeploy.Add_Click( (Wrap-UiAction -Name "run-deploy" -Action {
   $DeployScriptPath = $txtDeploy.Text
   Do-RunDeployScript
-})
+}))
 
-$btnPS.Add_Click({ Open-Terminal "ps-admin" })
-$btnWSL.Add_Click({ Open-Terminal "wsl" })
-$btnWT.Add_Click({ Open-Terminal "wt" })
+$btnPS.Add_Click( (Wrap-UiAction -Name "ps-admin" -Action { Open-Terminal "ps-admin" }) )
+$btnWSL.Add_Click( (Wrap-UiAction -Name "wsl" -Action { Open-Terminal "wsl" }) )
+$btnWT.Add_Click( (Wrap-UiAction -Name "wt" -Action { Open-Terminal "wt" }) )
 
-$btnDockerBash.Add_Click({
+$btnDockerBash.Add_Click( (Wrap-UiAction -Name "docker-bash" -Action {
   $img = "networkarchetype-plm:latest"
   Open-DockerBash $img
-})
+}))
 
-$btnHyperV.Add_Click({ Do-OpenHyperVManager })
-$btnHyperVNote.Add_Click({ Do-CreateHyperVSandboxNote })
+$btnHyperV.Add_Click( (Wrap-UiAction -Name "hyperv-manager" -Action { Do-OpenHyperVManager }) )
+$btnHyperVNote.Add_Click( (Wrap-UiAction -Name "hyperv-note" -Action { Do-CreateHyperVSandboxNote }) )
 
-$cmbMode.Add_SelectedIndexChanged({
+$btnLaunchCLI.Add_Click( (Wrap-UiAction -Name "launch-cli" -Action {
+  $startScript = Join-Path $script:RepoRoot "start_plm.ps1"
+  if (-not (Test-Path $startScript)) { Log "start_plm.ps1 not found."; return }
+  Start-Process powershell.exe -ArgumentList "-ExecutionPolicy","Bypass","-File",$startScript,"-CLI" | Out-Null
+  Log "Launched CLI console from GUI."
+  Append-ContextLog "switch:gui->cli"
+}))
+
+$cmbMode.Add_SelectedIndexChanged( (Wrap-UiAction -Name "mode-change" -Action {
   $mode = $cmbMode.SelectedItem.ToString()
   Log "Selected mode: $mode"
-})
+}))
 
-$form.Add_Shown({
+$form.Add_Shown( (Wrap-UiAction -Name "form-shown" -Action {
+  Set-AdvancedMode $false
   Log "PLM Environment Admin GUI started (Admin)."
   Log "Tip: Click Detect. If missing components, click Install/Repair. For updates, click Update."
   $s = Detect-Environment
   Render-Status $s
-})
+  Write-StoreEvent -Kind "env" -Message "gui:env-on-load" -Payload $s
+  Check-Collision
+}))
 
 [void]$form.ShowDialog()

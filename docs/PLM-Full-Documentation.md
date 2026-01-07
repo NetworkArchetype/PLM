@@ -29,25 +29,26 @@ PLM (Probabilistic Logic Machine) is a quantum temporal simulation framework tha
 
 ### Quick Install
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/NetworkArchetype/PLM.git
-   cd PLM
-   ```
+1) Fast path (menu):
+```powershell
+powershell -ExecutionPolicy Bypass -File .\start_plm.ps1
+```
+Pick GUI or CLI; both can run diagnostics, tests, CUDA toggles, and updates.
 
-2. Install Python dependencies:
-   ```bash
-   python -m venv venv
-   .\venv\Scripts\activate  # Windows
-   pip install -e .
-   pip install -e ".[quantum]"
-   pip install qsimcirq  # For GPU support
-   ```
+2) Manual path:
+```bash
+git clone https://github.com/NetworkArchetype/PLM.git
+cd PLM
+python -m venv venv
+\.\venv\Scripts\activate
+pip install -e .
+pip install -e ".[quantum]"
+pip install qsimcirq  # GPU support
+```
 
-3. Run the GUI:
-   ```powershell
-   .\PLM-Environment-AdminGUI.fixed.ps1
-   ```
+3) Run operator console (either):
+- GUI: `powershell -ExecutionPolicy Bypass -File .\Deploy\PLM-Environment-AdminGUI.fixed.ps1`
+- CLI: `.\venv\Scripts\python.exe .\scripts\plm_cli.py --menu` (use `--curses` if windows-curses installed)
 
 ## Usage
 
@@ -79,6 +80,8 @@ Toggles CUDA support.
 #### PLM-Environment-AdminGUI.fixed.ps1
 
 Main GUI script. No switches, run directly.
+
+See also: [docs/Admin-GUI-and-CLI-Guide.md](Admin-GUI-and-CLI-Guide.md) for a full operator walkthrough and CLI parity.
 
 #### Python Scripts
 
