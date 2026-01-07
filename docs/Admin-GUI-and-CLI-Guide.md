@@ -17,6 +17,7 @@ This guide covers the Admin GUI and the CLI operator console. Both provide the s
 - Install/Repair components (winget: Git, Python 3.12, VS Code, Windows Terminal, Docker Desktop, Nvidia CUDA)
 - Update components (winget upgrade)
 - Run smoke test (`test_installation.py`) and full pytest suite
+- Run full PLM quantum temporal simulation
 - Probe CUDA/GPU (nvidia-smi, nvcc)
 - Toggle CUDA via `Configure-CUDA.ps1` (enable/disable)
 - Launch Admin GUI (from CLI) or open debug consoles (with/without venv)
@@ -38,15 +39,16 @@ This guide covers the Admin GUI and the CLI operator console. Both provide the s
   1. Detect environment
   2. Run smoke test
   3. Run full pytest
-  4. Probe CUDA/GPU
-  5. Enable CUDA
-  6. Disable CUDA
-  7. Install/Repair components
-  8. Update components
-  9. Launch Admin GUI
-  10. Open debug console
-  11. Open option 2 console (venv)
-  12. Export debug report
+  4. Run PLM simulation
+  5. Probe CUDA/GPU
+  6. Enable CUDA
+  7. Disable CUDA
+  8. Install/Repair components
+  9. Update components
+  10. Launch Admin GUI
+  11. Open debug console
+  12. Open option 2 console (venv)
+  13. Export debug report
   0. Exit
 - Flags for one-shot actions (examples):
   - `--env`, `--smoke`, `--pytest`, `--probe-cuda`

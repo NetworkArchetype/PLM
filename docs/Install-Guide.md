@@ -34,13 +34,13 @@ python scripts/plm_cli.py --probe-cuda
 Use `start_plm.ps1` for menu-driven install:
 
 - **0**: Auto install + smoke (container preferred, native + container)
-- **8**: Auto install native-only (requires GPU)
+- **8**: Auto install native-only (GPU required)
 - **9**: Auto install container-only
 - **A**: Advanced install (customize options)
-- **B**: Native TensorFlow + Container PLM (new: TF on host, PLM in container)
+- **B**: Auto-detect CUDA: native CUDA/TensorFlow if detected, disabled if not; Container PLM
 - **H**: Help/Troubleshooting
 
-Example: `powershell start_plm.ps1` then select B for Native TF + Container PLM.
+Example: `powershell start_plm.ps1` then select B for auto-detect setup.
 
 ## Admin GUI Flow
 - Launch: `Deploy/PLM-Environment-AdminGUI.fixed.ps1` (elevated).
@@ -51,6 +51,13 @@ Example: `powershell start_plm.ps1` then select B for Native TF + Container PLM.
   - GPU Fix (runs Docker start + CUDA + TF + probe)
 - Use "Probe CUDA/GPU" to verify.
 - For automated options, use the CLI menu: `powershell start_plm.ps1`
+
+## Running PLM
+After install, run the full PLM simulation:
+```
+python scripts/plm_cli.py --run-plm
+```
+This executes the quantum temporal PLM algorithm with Cirq.
 
 ## WSL / Docker GPU path
 - For TensorFlow GPU on Windows, use Docker GPU sandbox: `python scripts/plm_cli.py --docker-cuda-shell`.
