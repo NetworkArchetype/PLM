@@ -412,6 +412,61 @@ function Do-TestCUDA {
   Log "CUDA test completed."
 }
 
+function Ensure-DockerRunning {
+  param([switch]$AutoInstall)
+  Log "Ensuring Docker Desktop is running..."
+  if (Exists-Cmd "docker") {
+    try {
+      $info = docker info --format "{{.ID}}" 2>$null
+      if ($LASTEXITCODE -eq 0 -and $info) { Log "Docker already running."; return }
+    } catch {}
+  } elseif ($AutoInstall) {
+    try { Log "Installing Docker Desktop via winget..."; Winget-Install "Docker.DockerDesktop"; Log "Docker Desktop install attempted." } catch { Log "Docker Desktop install failed: $($_.Exception.Message)" }
+  } else {
+    Log "Docker CLI not found. Install Docker Desktop first."; return
+  }
+
+  try { Start-Service com.docker.service -ErrorAction SilentlyContinue } catch {}
+
+  $desktop = "$env:ProgramFiles\Docker\Docker\Docker Desktop.exe"
+  $backend = "$env:ProgramFiles\Docker\Docker\resources\com.docker.backend.exe"
+  if (Test-Path $desktop) { Start-Process $desktop | Out-Null }
+  if (Test-Path $backend) { Start-Process $backend -ArgumentList "--unattended" -WindowStyle Hidden | Out-Null }
+
+  for ($i=0; $i -lt 40; $i++) {
+    try {
+      $info = docker info --format "{{.ID}}" 2>$null
+      if ($LASTEXITCODE -eq 0 -and $info) { Log "Docker started."; return }
+    } catch {}
+    Start-Sleep -Seconds 2
+  }
+  Log "Docker did not respond. Open Docker Desktop manually and retry."
+}
+
+function Install-CUDAToolkit {
+  if (Exists-Cmd "nvcc") { Log "CUDA toolkit already present (nvcc found)."; return }
+  try { Log "Installing NVIDIA CUDA Toolkit via winget..."; Winget-Install "Nvidia.CUDA"; Log "CUDA Toolkit install attempted. Reboot/logoff may be required." } catch { Log "CUDA Toolkit install failed: $($_.Exception.Message)" }
+}
+
+function Install-TensorFlowGPU {
+  $python = Get-PythonExe
+  if (-not $python) { Log "Python not found; install Python first."; return }
+  Log "Installing TensorFlow GPU (pip upgrade + tensorflow[and-cuda]) using $python"
+  try {
+    & $python -m pip install --upgrade pip 2>&1 | ForEach-Object { Log $_ }
+    & $python -m pip install tensorflow[and-cuda] 2>&1 | ForEach-Object { Log $_ }
+    Log "TensorFlow GPU install attempt finished."
+  } catch { Log "TensorFlow install failed: $($_.Exception.Message)" }
+}
+
+function Do-GPUFix {
+  Log "Running GPU fix (Docker start + CUDA toolkit + TensorFlow)..."
+  Ensure-DockerRunning -AutoInstall
+  Install-CUDAToolkit
+  Install-TensorFlowGPU
+  Do-TestCUDA
+}
+
 function Do-EnableCUDA {
   $cfg = Join-Path $RepoRoot "Configure-CUDA.ps1"
   if (-not (Test-Path $cfg)) { Log "Configure-CUDA.ps1 not found."; return }
@@ -506,7 +561,7 @@ $grpActions = New-Object System.Windows.Forms.GroupBox
 $grpActions.Text = "Actions and Modes"
 $grpActions.Font = $font
 $grpActions.Location = New-Object System.Drawing.Point(548, 10)
-$grpActions.Size = New-Object System.Drawing.Size(520, 240)
+$grpActions.Size = New-Object System.Drawing.Size(520, 270)
 $pTop.Controls.Add($grpActions)
 
 # Deploy script selector
@@ -674,6 +729,41 @@ $btnDockerCUDAShell.Size = New-Object System.Drawing.Size(90, 30)
 $btnDockerCUDAShell.Font = $font
 $grpActions.Controls.Add($btnDockerCUDAShell)
 
+$btnDockerStart = New-Object System.Windows.Forms.Button
+$btnDockerStart.Text = "Start Docker"
+$btnDockerStart.Location = New-Object System.Drawing.Point(16, 232)
+$btnDockerStart.Size = New-Object System.Drawing.Size(110, 30)
+$btnDockerStart.Font = $font
+$grpActions.Controls.Add($btnDockerStart)
+
+$btnDockerInstall = New-Object System.Windows.Forms.Button
+$btnDockerInstall.Text = "Install Docker"
+$btnDockerInstall.Location = New-Object System.Drawing.Point(132, 232)
+$btnDockerInstall.Size = New-Object System.Drawing.Size(110, 30)
+$btnDockerInstall.Font = $font
+$grpActions.Controls.Add($btnDockerInstall)
+
+$btnCUDAInstall = New-Object System.Windows.Forms.Button
+$btnCUDAInstall.Text = "Install CUDA"
+$btnCUDAInstall.Location = New-Object System.Drawing.Point(248, 232)
+$btnCUDAInstall.Size = New-Object System.Drawing.Size(100, 30)
+$btnCUDAInstall.Font = $font
+$grpActions.Controls.Add($btnCUDAInstall)
+
+$btnTensorInstall = New-Object System.Windows.Forms.Button
+$btnTensorInstall.Text = "Install TF GPU"
+$btnTensorInstall.Location = New-Object System.Drawing.Point(354, 232)
+$btnTensorInstall.Size = New-Object System.Drawing.Size(110, 30)
+$btnTensorInstall.Font = $font
+$grpActions.Controls.Add($btnTensorInstall)
+
+$btnGPUFix = New-Object System.Windows.Forms.Button
+$btnGPUFix.Text = "GPU Fix"
+$btnGPUFix.Location = New-Object System.Drawing.Point(470, 232)
+$btnGPUFix.Size = New-Object System.Drawing.Size(60, 30)
+$btnGPUFix.Font = $font
+$grpActions.Controls.Add($btnGPUFix)
+
 # Log box
 $script:txtLog = New-Object System.Windows.Forms.TextBox
 $script:txtLog.Multiline = $true
@@ -729,6 +819,11 @@ $btnCUDAEnable.Add_Click({ Do-EnableCUDA })
 $btnCUDADisable.Add_Click({ Do-DisableCUDA })
 $btnCUDAShell.Add_Click({ Open-CUDAShell })
 $btnDockerCUDAShell.Add_Click({ Open-DockerCUDAShell })
+$btnDockerStart.Add_Click({ Ensure-DockerRunning })
+$btnDockerInstall.Add_Click({ Ensure-DockerRunning -AutoInstall })
+$btnCUDAInstall.Add_Click({ Install-CUDAToolkit })
+$btnTensorInstall.Add_Click({ Install-TensorFlowGPU })
+$btnGPUFix.Add_Click({ Do-GPUFix })
 
 $cmbMode.Add_SelectedIndexChanged({
   $mode = $cmbMode.SelectedItem.ToString()

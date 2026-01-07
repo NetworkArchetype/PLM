@@ -49,6 +49,8 @@ DEFAULT_PY = Path(sys.executable)
 VENV_PY = REPO_ROOT / "venv" / "Scripts" / "python.exe"
 CONFIG_CUDA_PS1 = REPO_ROOT / "Configure-CUDA.ps1"
 ADMIN_GUI_PS1 = REPO_ROOT / "Deploy" / "PLM-Environment-AdminGUI.fixed.ps1"
+DOCKER_DESKTOP_EXE = Path(os.environ.get("ProgramFiles", "C:/Program Files")) / "Docker" / "Docker" / "Docker Desktop.exe"
+DOCKER_BACKEND_EXE = Path(os.environ.get("ProgramFiles", "C:/Program Files")) / "Docker" / "Docker" / "resources" / "com.docker.backend.exe"
 CONTEXT_PATH = REPO_ROOT / ".plm_session.ndjson"
 SESSION_ID = str(uuid.uuid4())
 USERNAME = os.environ.get("USERNAME") or os.environ.get("USER") or "unknown"
@@ -106,6 +108,15 @@ def detect_environment() -> Dict[str, bool]:
         "nvcc": bool(which("nvcc")),
     }
     return env
+
+
+def sleep(seconds: float) -> None:
+    try:
+        import time
+
+        time.sleep(seconds)
+    except Exception:
+        subprocess.run([sys.executable, "-c", f"import time; time.sleep({seconds})"], check=False)
 
 
 def _utc_iso() -> str:
@@ -291,6 +302,65 @@ def probe_cuda() -> None:
         _log_store_event("probe", "cli:docker-gpu", {"exit_code": code, "stdout": out, "stderr": err})
 
 
+def ensure_docker_running(auto_install: bool = False, wait_secs: int = 60) -> bool:
+    """Start Docker Desktop if installed; optionally install it."""
+
+    def _running() -> bool:
+        code, out, _ = run(["docker", "info", "--format", "{{.ID}}"])
+        return code == 0 and bool(out.strip())
+
+    if _running():
+        print("Docker is running.")
+        return True
+
+    if not which("docker") and auto_install:
+        print("Installing Docker Desktop via winget ...")
+        winget_batch(["Docker.DockerDesktop"], upgrade=False)
+
+    # Best-effort service start; may stay 'Stopped' even when backend is active
+    subprocess.run(["powershell", "-Command", "Start-Service com.docker.service"], check=False)
+
+    # Launch the Desktop UI/back-end if present
+    if DOCKER_DESKTOP_EXE.exists():
+        subprocess.Popen([str(DOCKER_DESKTOP_EXE)])
+    if DOCKER_BACKEND_EXE.exists():
+        subprocess.Popen([str(DOCKER_BACKEND_EXE), "--unattended"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    for _ in range(max(3, wait_secs // 2)):
+        if _running():
+            print("Docker started.")
+            return True
+        sleep(2)
+
+    print("Docker did not start. Open Docker Desktop manually and retry.")
+    return False
+
+
+def install_cuda_toolkit() -> int:
+    if which("nvcc"):
+        print("CUDA toolkit already present (nvcc found).")
+        return 0
+    print("Installing NVIDIA CUDA Toolkit via winget ...")
+    return winget_batch(["Nvidia.CUDA"], upgrade=False)
+
+
+def install_tensorflow_gpu() -> int:
+    py = get_python()
+    print(f"Installing TensorFlow GPU with {py} ...")
+    code_pip, out_pip, err_pip = run([str(py), "-m", "pip", "install", "--upgrade", "pip"])
+    if out_pip:
+        print(out_pip)
+    if err_pip:
+        print(err_pip)
+    code_tf, out_tf, err_tf = run([str(py), "-m", "pip", "install", "tensorflow[and-cuda]"])
+    if out_tf:
+        print(out_tf)
+    if err_tf:
+        print(err_tf)
+    _log_store_event("action", "cli:install-tensorflow", {"pip": code_pip, "tf": code_tf})
+    return code_tf
+
+
 def toggle_cuda(enable: bool) -> int:
     if not CONFIG_CUDA_PS1.exists():
         print("Configure-CUDA.ps1 not found; cannot toggle CUDA.")
@@ -472,6 +542,18 @@ def handle_actions(args: argparse.Namespace) -> bool:
     if args.disable_cuda:
         toggle_cuda(False)
         return True
+    if args.ensure_docker:
+        ensure_docker_running(auto_install=False)
+        return True
+    if args.install_docker:
+        ensure_docker_running(auto_install=True)
+        return True
+    if args.install_cuda_toolkit:
+        install_cuda_toolkit()
+        return True
+    if args.install_tensorflow:
+        install_tensorflow_gpu()
+        return True
     if args.launch_gui:
         launch_gui()
         return True
@@ -507,13 +589,17 @@ def menu_loop() -> None:
         "6": ("Disable CUDA", lambda: toggle_cuda(False)),
         "7": ("Open CUDA shell (host)", open_cuda_shell),
         "8": ("Open CUDA shell (Docker)", open_docker_cuda_shell),
-        "9": ("Install / Repair components", install_or_repair),
-        "10": ("Update components", update_components),
-        "11": ("Launch Admin GUI", launch_gui),
-        "12": ("Open debug console", lambda: open_debug_console(False)),
-        "13": ("Open option 2 console (venv)", lambda: open_debug_console(True)),
-        "14": ("Export debug report", export_report),
-        "15": ("Open operator guide", open_docs),
+        "9": ("Start/ensure Docker Desktop", lambda: ensure_docker_running(False)),
+        "10": ("Install Docker Desktop", lambda: ensure_docker_running(True)),
+        "11": ("Install CUDA Toolkit", install_cuda_toolkit),
+        "12": ("Install TensorFlow GPU", install_tensorflow_gpu),
+        "13": ("Install / Repair components", install_or_repair),
+        "14": ("Update components", update_components),
+        "15": ("Launch Admin GUI", launch_gui),
+        "16": ("Open debug console", lambda: open_debug_console(False)),
+        "17": ("Open option 2 console (venv)", lambda: open_debug_console(True)),
+        "18": ("Export debug report", export_report),
+        "19": ("Open operator guide", open_docs),
         "0": ("Exit", None),
     }
     while True:
@@ -594,6 +680,10 @@ def main() -> None:
     parser.add_argument("--docker-cuda-shell", action="store_true", help="Open CUDA shell in Docker with --gpus all")
     parser.add_argument("--enable-cuda", action="store_true", help="Enable CUDA via Configure-CUDA.ps1")
     parser.add_argument("--disable-cuda", action="store_true", help="Disable CUDA via Configure-CUDA.ps1")
+    parser.add_argument("--ensure-docker", action="store_true", help="Start Docker Desktop if installed; do not install")
+    parser.add_argument("--install-docker", action="store_true", help="Install (and start) Docker Desktop via winget")
+    parser.add_argument("--install-cuda-toolkit", action="store_true", help="Install NVIDIA CUDA toolkit via winget")
+    parser.add_argument("--install-tensorflow", action="store_true", help="Install TensorFlow with CUDA support using current python")
     parser.add_argument("--launch-gui", action="store_true", help="Launch Admin GUI")
     parser.add_argument("--install-repair", action="store_true", help="Install/Repair core components via winget")
     parser.add_argument("--update-components", action="store_true", help="Update core components via winget")
