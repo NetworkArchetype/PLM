@@ -248,6 +248,12 @@ def probe_cuda() -> None:
     print("CUDA/GPU probe...")
     append_context("cli:probe-cuda")
     _log_store_event("probe", "cli:probe-cuda", None)
+    cuda_path = os.environ.get("CUDA_PATH") or os.environ.get("CUDA_PATH_V12_0") or os.environ.get("CUDA_PATH_V11_0")
+    if cuda_path:
+        print(f"- CUDA_PATH: {cuda_path}")
+    nvcc_path = which("nvcc")
+    if nvcc_path:
+        print(f"- nvcc path: {nvcc_path}")
     code, out, err = run(["nvidia-smi"])
     if code == 0:
         print("- nvidia-smi OK")
@@ -264,6 +270,25 @@ def probe_cuda() -> None:
     else:
         print(f"- nvcc not available ({err or code})")
     _log_store_event("probe", "cli:nvcc", {"exit_code": code, "stdout": out, "stderr": err})
+
+    py = get_python()
+    tf_cmd = [str(py), "-c", "import json,sys; import importlib;\ntry:\n import tensorflow as tf;\n info={'ver':tf.__version__,'gpus':[d.name for d in tf.config.list_physical_devices('GPU')]};\n print(json.dumps(info));\n sys.exit(0)\nexcept Exception as e:\n print(f'ERROR {e}'); sys.exit(1)"]
+    code, out, err = run(tf_cmd)
+    if code == 0:
+        print(f"- tensorflow: {out}")
+    else:
+        print(f"- tensorflow not ready ({err or out or code})")
+    _log_store_event("probe", "cli:tensorflow", {"exit_code": code, "stdout": out, "stderr": err})
+
+    if which("docker"):
+        code, out, err = run(["docker", "run", "--rm", "--gpus", "all", "nvidia/cuda:12.4.0-base-ubuntu22.04", "nvidia-smi"])
+        if code == 0:
+            print("- docker GPU probe OK")
+            if out:
+                print(out)
+        else:
+            print(f"- docker GPU probe failed ({err or code})")
+        _log_store_event("probe", "cli:docker-gpu", {"exit_code": code, "stdout": out, "stderr": err})
 
 
 def toggle_cuda(enable: bool) -> int:
@@ -287,6 +312,39 @@ def toggle_cuda(enable: bool) -> int:
         print(err)
     _log_store_event("action", "cli:toggle-cuda", {"enable": enable, "exit_code": code, "stdout": out, "stderr": err})
     return code
+
+
+def open_cuda_shell() -> None:
+    shell_cmd = f"& {{ Set-Location -LiteralPath '{REPO_ROOT}'; Write-Host 'CUDA shell - repo at {REPO_ROOT}'; }}"
+    subprocess.Popen([
+        "powershell",
+        "-NoExit",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        shell_cmd,
+    ])
+    print("CUDA shell opened (host)")
+    append_context("cli:cuda-shell")
+    _log_store_event("action", "cli:cuda-shell", None)
+
+
+def open_docker_cuda_shell(image: str = "nvidia/cuda:12.4.0-base-ubuntu22.04") -> None:
+    if not which("docker"):
+        print("Docker not found; cannot open CUDA shell in container.")
+        return
+    cmd = "docker run --rm -it --gpus all {img} bash".format(img=image)
+    subprocess.Popen([
+        "powershell",
+        "-NoExit",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        cmd,
+    ])
+    print(f"Docker CUDA shell opened using {image}")
+    append_context("cli:docker-cuda-shell")
+    _log_store_event("action", "cli:docker-cuda-shell", {"image": image})
 
 
 def winget_batch(ids: List[str], upgrade: bool = False) -> int:
@@ -402,6 +460,12 @@ def handle_actions(args: argparse.Namespace) -> bool:
     if args.probe_cuda:
         probe_cuda()
         return True
+    if args.cuda_shell:
+        open_cuda_shell()
+        return True
+    if args.docker_cuda_shell:
+        open_docker_cuda_shell()
+        return True
     if args.enable_cuda:
         toggle_cuda(True)
         return True
@@ -441,13 +505,15 @@ def menu_loop() -> None:
         "4": ("Probe CUDA/GPU", probe_cuda),
         "5": ("Enable CUDA", lambda: toggle_cuda(True)),
         "6": ("Disable CUDA", lambda: toggle_cuda(False)),
-        "7": ("Install / Repair components", install_or_repair),
-        "8": ("Update components", update_components),
-        "9": ("Launch Admin GUI", launch_gui),
-        "10": ("Open debug console", lambda: open_debug_console(False)),
-        "11": ("Open option 2 console (venv)", lambda: open_debug_console(True)),
-        "12": ("Export debug report", export_report),
-        "13": ("Open operator guide", open_docs),
+        "7": ("Open CUDA shell (host)", open_cuda_shell),
+        "8": ("Open CUDA shell (Docker)", open_docker_cuda_shell),
+        "9": ("Install / Repair components", install_or_repair),
+        "10": ("Update components", update_components),
+        "11": ("Launch Admin GUI", launch_gui),
+        "12": ("Open debug console", lambda: open_debug_console(False)),
+        "13": ("Open option 2 console (venv)", lambda: open_debug_console(True)),
+        "14": ("Export debug report", export_report),
+        "15": ("Open operator guide", open_docs),
         "0": ("Exit", None),
     }
     while True:
@@ -524,6 +590,8 @@ def main() -> None:
     parser.add_argument("--smoke", action="store_true", help="Run smoke test")
     parser.add_argument("--pytest", action="store_true", help="Run full pytest")
     parser.add_argument("--probe-cuda", action="store_true", help="Probe CUDA/GPU")
+    parser.add_argument("--cuda-shell", action="store_true", help="Open CUDA shell (host)")
+    parser.add_argument("--docker-cuda-shell", action="store_true", help="Open CUDA shell in Docker with --gpus all")
     parser.add_argument("--enable-cuda", action="store_true", help="Enable CUDA via Configure-CUDA.ps1")
     parser.add_argument("--disable-cuda", action="store_true", help="Disable CUDA via Configure-CUDA.ps1")
     parser.add_argument("--launch-gui", action="store_true", help="Launch Admin GUI")

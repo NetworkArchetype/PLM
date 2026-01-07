@@ -341,6 +341,12 @@ function Do-CreateHyperVSandboxNote {
 
 function Do-TestCUDA {
   Log "Testing CUDA..."
+  $gpu = $null
+  $nvccVersion = $null
+  $smi = $null
+  $cudaPath = $env:CUDA_PATH
+  if ($cudaPath) { Log "CUDA_PATH: $cudaPath" }
+
   if (-not (Exists-Cmd "nvidia-smi")) {
     Log "nvidia-smi not found. Install NVIDIA drivers first."
     return
@@ -351,29 +357,87 @@ function Do-TestCUDA {
       Log "Detected GPU: $($gpu.Name)"
     } else {
       Log "No NVIDIA GPU detected."
-      return
     }
   } catch {
     Log "Error detecting GPU: $($_.Exception.Message)"
-    return
   }
-  if (-not (Exists-Cmd "nvcc")) {
+
+  $nvccPath = Get-Command nvcc -ErrorAction SilentlyContinue
+  if ($nvccPath) {
+    Log "nvcc path: $($nvccPath.Path)"
+    try {
+      $nvccVersion = & nvcc --version 2>$null | Select-String "release" | ForEach-Object { $_.Line }
+      Log "CUDA version: $nvccVersion"
+    } catch {
+      Log "Error getting CUDA version: $($_.Exception.Message)"
+    }
+  } else {
     Log "nvcc not found. Install CUDA Toolkit."
-    return
   }
+
   try {
-    $nvccVersion = & nvcc --version 2>$null | Select-String "release" | ForEach-Object { $_.Line }
-    Log "CUDA version: $nvccVersion"
-  } catch {
-    Log "Error getting CUDA version: $($_.Exception.Message)"
-  }
-  try {
-    $smi = & nvidia-smi --query-gpu=name,memory.total,memory.free --format=csv,noheader,nounits 2>$null
+    $smi = & nvidia-smi --query-gpu=name,driver_version,memory.total,memory.free --format=csv,noheader,nounits 2>$null
     Log "GPU Info: $smi"
   } catch {
     Log "Error running nvidia-smi: $($_.Exception.Message)"
   }
+
+  try {
+    $python = Get-PythonExe
+    if ($python) {
+      $tfOut = & $python -c "import json, sys, tensorflow as tf; print(json.dumps({'ver':tf.__version__, 'gpus':[d.name for d in tf.config.list_physical_devices('GPU')]}))" 2>&1
+      Log "TensorFlow: $tfOut"
+    } else {
+      Log "Python not found for TensorFlow check."
+    }
+  } catch {
+    Log "TensorFlow check failed: $($_.Exception.Message)"
+  }
+
+  if (Exists-Cmd "docker") {
+    try {
+      $dockerOut = & docker run --rm --gpus all nvidia/cuda:12.4.0-base-ubuntu22.04 nvidia-smi 2>&1
+      if ($LASTEXITCODE -eq 0) {
+        Log "Docker GPU probe: $dockerOut"
+      } else {
+        Log "Docker GPU probe failed (exit $LASTEXITCODE): $dockerOut"
+      }
+    } catch {
+      Log "Docker GPU probe error: $($_.Exception.Message)"
+    }
+  } else {
+    Log "Docker not detected; skipping docker GPU probe."
+  }
+
   Log "CUDA test completed."
+}
+
+function Do-EnableCUDA {
+  $cfg = Join-Path $RepoRoot "Configure-CUDA.ps1"
+  if (-not (Test-Path $cfg)) { Log "Configure-CUDA.ps1 not found."; return }
+  Log "Enabling CUDA via Configure-CUDA.ps1..."
+  try { & powershell -ExecutionPolicy Bypass -File $cfg -Enable 2>&1 | ForEach-Object { Log $_ } } catch { Log "Enable CUDA failed: $($_.Exception.Message)" }
+}
+
+function Do-DisableCUDA {
+  $cfg = Join-Path $RepoRoot "Configure-CUDA.ps1"
+  if (-not (Test-Path $cfg)) { Log "Configure-CUDA.ps1 not found."; return }
+  Log "Disabling CUDA via Configure-CUDA.ps1..."
+  try { & powershell -ExecutionPolicy Bypass -File $cfg -Disable 2>&1 | ForEach-Object { Log $_ } } catch { Log "Disable CUDA failed: $($_.Exception.Message)" }
+}
+
+function Open-CUDAShell {
+  $cmd = "& { Set-Location -LiteralPath '$RepoRoot'; Write-Host 'CUDA shell ready at $RepoRoot'; }"
+  Start-Process powershell.exe -ArgumentList "-NoExit","-ExecutionPolicy","Bypass","-Command",$cmd | Out-Null
+  Log "Opened CUDA shell (host)."
+}
+
+function Open-DockerCUDAShell {
+  if (-not (Exists-Cmd "docker")) { Log "Docker not found."; return }
+  $img = "nvidia/cuda:12.4.0-base-ubuntu22.04"
+  $cmd = "docker run --rm -it --gpus all $img bash"
+  Start-Process powershell.exe -ArgumentList "-NoExit","-ExecutionPolicy","Bypass","-Command",$cmd | Out-Null
+  Log "Opened Docker CUDA shell: $img"
 }
 
 # -----------------------------
@@ -576,11 +640,39 @@ $grpActions.Controls.Add($btnHyperVNote)
 
 # CUDA button
 $btnCUDATest = New-Object System.Windows.Forms.Button
-$btnCUDATest.Text = "Test CUDA"
+$btnCUDATest.Text = "CUDA Info"
 $btnCUDATest.Location = New-Object System.Drawing.Point(16, 196)
-$btnCUDATest.Size = New-Object System.Drawing.Size(100, 30)
+$btnCUDATest.Size = New-Object System.Drawing.Size(90, 30)
 $btnCUDATest.Font = $font
 $grpActions.Controls.Add($btnCUDATest)
+
+$btnCUDAEnable = New-Object System.Windows.Forms.Button
+$btnCUDAEnable.Text = "Enable CUDA"
+$btnCUDAEnable.Location = New-Object System.Drawing.Point(112, 196)
+$btnCUDAEnable.Size = New-Object System.Drawing.Size(110, 30)
+$btnCUDAEnable.Font = $font
+$grpActions.Controls.Add($btnCUDAEnable)
+
+$btnCUDADisable = New-Object System.Windows.Forms.Button
+$btnCUDADisable.Text = "Disable CUDA"
+$btnCUDADisable.Location = New-Object System.Drawing.Point(228, 196)
+$btnCUDADisable.Size = New-Object System.Drawing.Size(110, 30)
+$btnCUDADisable.Font = $font
+$grpActions.Controls.Add($btnCUDADisable)
+
+$btnCUDAShell = New-Object System.Windows.Forms.Button
+$btnCUDAShell.Text = "CUDA Shell"
+$btnCUDAShell.Location = New-Object System.Drawing.Point(344, 196)
+$btnCUDAShell.Size = New-Object System.Drawing.Size(80, 30)
+$btnCUDAShell.Font = $font
+$grpActions.Controls.Add($btnCUDAShell)
+
+$btnDockerCUDAShell = New-Object System.Windows.Forms.Button
+$btnDockerCUDAShell.Text = "Docker CUDA"
+$btnDockerCUDAShell.Location = New-Object System.Drawing.Point(430, 196)
+$btnDockerCUDAShell.Size = New-Object System.Drawing.Size(90, 30)
+$btnDockerCUDAShell.Font = $font
+$grpActions.Controls.Add($btnDockerCUDAShell)
 
 # Log box
 $script:txtLog = New-Object System.Windows.Forms.TextBox
@@ -633,6 +725,10 @@ $btnHyperV.Add_Click({ Do-OpenHyperVManager })
 $btnHyperVNote.Add_Click({ Do-CreateHyperVSandboxNote })
 
 $btnCUDATest.Add_Click({ Do-TestCUDA })
+$btnCUDAEnable.Add_Click({ Do-EnableCUDA })
+$btnCUDADisable.Add_Click({ Do-DisableCUDA })
+$btnCUDAShell.Add_Click({ Open-CUDAShell })
+$btnDockerCUDAShell.Add_Click({ Open-DockerCUDAShell })
 
 $cmbMode.Add_SelectedIndexChanged({
   $mode = $cmbMode.SelectedItem.ToString()

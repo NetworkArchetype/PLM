@@ -525,7 +525,11 @@ function Run-SmokeTest([switch]$Full) {
 
 function Run-CUDADiagnostics {
   Log "Running CUDA / GPU probe..."
+  $gpu = $null
+  $nvccVersion = $null
+  $smi = $null
   if (-not (Exists-Cmd "nvidia-smi")) { Log "nvidia-smi not found. Install NVIDIA drivers."; return }
+  if ($env:CUDA_PATH) { Log "CUDA_PATH: $($env:CUDA_PATH)" }
   try {
     $gpu = Get-CimInstance Win32_VideoController | Where-Object { $_.Name -like "*NVIDIA*" } | Select-Object -First 1
     if ($gpu) { Log "Detected GPU: $($gpu.Name)" } else { Log "No NVIDIA GPU detected." }
@@ -541,9 +545,29 @@ function Run-CUDADiagnostics {
   }
 
   try {
-    $smi = & nvidia-smi --query-gpu=name,memory.total,memory.free --format=csv,noheader,nounits 2>$null
+    $smi = & nvidia-smi --query-gpu=name,driver_version,memory.total,memory.free --format=csv,noheader,nounits 2>$null
     Log "GPU Info: $smi"
   } catch { Log "nvidia-smi query failed: $($_.Exception.Message)" }
+
+   # TensorFlow check (best-effort)
+  try {
+    $python = Get-PythonExe
+    if ($python) {
+      $tfOut = & $python -c "import json,sys,tensorflow as tf; print(json.dumps({'ver':tf.__version__, 'gpus':[d.name for d in tf.config.list_physical_devices('GPU')]}))" 2>&1
+      Log "TensorFlow: $tfOut"
+    } else {
+      Log "Python not found for TensorFlow check."
+    }
+  } catch { Log "TensorFlow check failed: $($_.Exception.Message)" }
+
+  if (Exists-Cmd "docker") {
+    try {
+      $dockerOut = & docker run --rm --gpus all nvidia/cuda:12.4.0-base-ubuntu22.04 nvidia-smi 2>&1
+      if ($LASTEXITCODE -eq 0) { Log "Docker GPU probe: $dockerOut" } else { Log "Docker GPU probe failed (exit $LASTEXITCODE): $dockerOut" }
+    } catch { Log "Docker GPU probe error: $($_.Exception.Message)" }
+  } else {
+    Log "Docker not detected; skipping docker GPU probe."
+  }
   Log "CUDA probe complete."
   Append-ContextLog "cuda-probe-done"
   Write-StoreEvent -Kind "probe" -Message "gui:cuda" -Payload @{ gpu = $gpu; nvcc = $nvccVersion; smi = $smi }
@@ -555,6 +579,34 @@ function Run-EnvReport {
   Render-Status $s
   $report = $s.GetEnumerator() | ForEach-Object { "{0}={1}" -f $_.Key,$_.Value }
   Log ("Env: " + ($report -join "; "))
+}
+
+function Do-EnableCUDA {
+  $cfg = Join-Path $RepoRoot "Configure-CUDA.ps1"
+  if (-not (Test-Path $cfg)) { Log "Configure-CUDA.ps1 not found."; return }
+  Log "Enabling CUDA via Configure-CUDA.ps1..."
+  try { & powershell -ExecutionPolicy Bypass -File $cfg -Enable 2>&1 | ForEach-Object { Log $_ } } catch { Log "Enable CUDA failed: $($_.Exception.Message)" }
+}
+
+function Do-DisableCUDA {
+  $cfg = Join-Path $RepoRoot "Configure-CUDA.ps1"
+  if (-not (Test-Path $cfg)) { Log "Configure-CUDA.ps1 not found."; return }
+  Log "Disabling CUDA via Configure-CUDA.ps1..."
+  try { & powershell -ExecutionPolicy Bypass -File $cfg -Disable 2>&1 | ForEach-Object { Log $_ } } catch { Log "Disable CUDA failed: $($_.Exception.Message)" }
+}
+
+function Open-CUDAShell {
+  $cmd = "& { Set-Location -LiteralPath '$RepoRoot'; Write-Host 'CUDA shell ready at $RepoRoot'; }"
+  Start-Process powershell.exe -ArgumentList "-NoExit","-ExecutionPolicy","Bypass","-Command",$cmd | Out-Null
+  Log "Opened CUDA shell (host)."
+}
+
+function Open-DockerCUDAShell {
+  if (-not (Exists-Cmd "docker")) { Log "Docker not found."; return }
+  $img = "nvidia/cuda:12.4.0-base-ubuntu22.04"
+  $cmd = "docker run --rm -it --gpus all $img bash"
+  Start-Process powershell.exe -ArgumentList "-NoExit","-ExecutionPolicy","Bypass","-Command",$cmd | Out-Null
+  Log "Opened Docker CUDA shell: $img"
 }
 
 function Export-DebugReport {
@@ -610,7 +662,7 @@ function Do-InstallOrRepair {
 
   if (-not $s.Winget) { Log "winget missing. Install 'App Installer' from Microsoft Store."; return }
 
-  foreach ($id in @("Git.Git","Python.Python.3.12","Microsoft.VisualStudioCode","Microsoft.WindowsTerminal","Docker.DockerDesktop")) {
+  foreach ($id in @("Git.Git","Python.Python.3.12","Microsoft.VisualStudioCode","Microsoft.WindowsTerminal","Docker.DockerDesktop","Nvidia.CUDA")) {
     try { Winget-Install $id; Log "Installed: $id" } catch { Log "Install failed: $id :: $($_.Exception.Message)" }
   }
 
@@ -641,7 +693,7 @@ function Do-Update {
   if (-not $s.Winget) { Log "winget missing; cannot update."; return }
 
   Log "Updating packages (winget upgrade)..."
-  foreach ($id in @("Git.Git","Python.Python.3.12","Microsoft.VisualStudioCode","Microsoft.WindowsTerminal","Docker.DockerDesktop")) {
+  foreach ($id in @("Git.Git","Python.Python.3.12","Microsoft.VisualStudioCode","Microsoft.WindowsTerminal","Docker.DockerDesktop","Nvidia.CUDA")) {
     try { Winget-Upgrade $id; Log "Upgraded: $id" } catch { Log "Upgrade failed: $id :: $($_.Exception.Message)" }
   }
 
@@ -1094,9 +1146,44 @@ $grpActions.Controls.Add($btnHyperVNote)
 $btnLaunchCLI = New-Object System.Windows.Forms.Button
 $btnLaunchCLI.Text = "Switch to CLI"
 $btnLaunchCLI.Location = New-Object System.Drawing.Point(16, 196)
-$btnLaunchCLI.Size = New-Object System.Drawing.Size(110, 30)
+$btnLaunchCLI.Size = New-Object System.Drawing.Size(100, 30)
 $btnLaunchCLI.Font = $font
 $grpActions.Controls.Add($btnLaunchCLI)
+
+$btnCudaProbe = New-Object System.Windows.Forms.Button
+$btnCudaProbe.Text = "CUDA Info"
+$btnCudaProbe.Location = New-Object System.Drawing.Point(120, 196)
+$btnCudaProbe.Size = New-Object System.Drawing.Size(90, 30)
+$btnCudaProbe.Font = $font
+$grpActions.Controls.Add($btnCudaProbe)
+
+$btnCudaEnable = New-Object System.Windows.Forms.Button
+$btnCudaEnable.Text = "Enable CUDA"
+$btnCudaEnable.Location = New-Object System.Drawing.Point(214, 196)
+$btnCudaEnable.Size = New-Object System.Drawing.Size(100, 30)
+$btnCudaEnable.Font = $font
+$grpActions.Controls.Add($btnCudaEnable)
+
+$btnCudaDisable = New-Object System.Windows.Forms.Button
+$btnCudaDisable.Text = "Disable CUDA"
+$btnCudaDisable.Location = New-Object System.Drawing.Point(318, 196)
+$btnCudaDisable.Size = New-Object System.Drawing.Size(100, 30)
+$btnCudaDisable.Font = $font
+$grpActions.Controls.Add($btnCudaDisable)
+
+$btnCudaShell = New-Object System.Windows.Forms.Button
+$btnCudaShell.Text = "CUDA Shell"
+$btnCudaShell.Location = New-Object System.Drawing.Point(422, 196)
+$btnCudaShell.Size = New-Object System.Drawing.Size(90, 30)
+$btnCudaShell.Font = $font
+$grpActions.Controls.Add($btnCudaShell)
+
+$btnDockerCudaShell = New-Object System.Windows.Forms.Button
+$btnDockerCudaShell.Text = "Docker CUDA"
+$btnDockerCudaShell.Location = New-Object System.Drawing.Point(16, 232)
+$btnDockerCudaShell.Size = New-Object System.Drawing.Size(110, 30)
+$btnDockerCudaShell.Font = $font
+$grpActions.Controls.Add($btnDockerCudaShell)
 
 # Log box
 $script:txtLog = New-Object System.Windows.Forms.TextBox
@@ -1152,6 +1239,10 @@ $btnPytest.Add_Click( (Wrap-UiAction -Name "pytest" -Action {
 }))
 
 $btnCudaProbe.Add_Click( (Wrap-UiAction -Name "cuda-probe" -Action { Run-CUDADiagnostics }) )
+$btnCudaEnable.Add_Click( (Wrap-UiAction -Name "cuda-enable" -Action { Do-EnableCUDA }) )
+$btnCudaDisable.Add_Click( (Wrap-UiAction -Name "cuda-disable" -Action { Do-DisableCUDA }) )
+$btnCudaShell.Add_Click( (Wrap-UiAction -Name "cuda-shell" -Action { Open-CUDAShell }) )
+$btnDockerCudaShell.Add_Click( (Wrap-UiAction -Name "docker-cuda-shell" -Action { Open-DockerCUDAShell }) )
 $btnEnvReport.Add_Click( (Wrap-UiAction -Name "env-report" -Action { Run-EnvReport }) )
 
 $btnDebugConsole.Add_Click( (Wrap-UiAction -Name "debug-console" -Action { Open-DebugConsole }) )
