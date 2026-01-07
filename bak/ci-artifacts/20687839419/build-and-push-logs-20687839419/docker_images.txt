@@ -1,0 +1,3 @@
+REPOSITORY:TAG                  SIZE
+moby/buildkit:buildx-stable-1   227MB
+tonistiigi/binfmt:latest        83.3MB

@@ -128,7 +128,7 @@ Write-Host "0) Auto install + smoke (container preferred, native + container) [d
 Write-Host "8) Auto install native-only (GPU required)" -ForegroundColor Yellow
 Write-Host "9) Auto install container-only" -ForegroundColor Yellow
 Write-Host "A) Advanced install (customize native/container/GPU)" -ForegroundColor Yellow
-Write-Host "B) Native CUDA/TensorFlow + Container PLM" -ForegroundColor Yellow
+Write-Host "B) Auto-detect CUDA: native CUDA/TensorFlow if detected, disabled if not; Container PLM" -ForegroundColor Yellow
 Write-Host "H) Help/Troubleshooting" -ForegroundColor Yellow
 Write-Host "1) CLI with Docker support" -ForegroundColor Yellow
 Write-Host "2) CLI with CUDA support" -ForegroundColor Yellow

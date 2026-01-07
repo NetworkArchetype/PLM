@@ -20,6 +20,7 @@ $script:RepoRoot = Split-Path $PSScriptRoot -Parent
 $script:IsAdvancedMode = $false
 $script:SessionId = [guid]::NewGuid().ToString()
 $script:ContextPath = Join-Path $script:RepoRoot ".plm_session.ndjson"
+$script:LogLevel = "Normal"  # Normal|Debug
 
 function Ensure-Admin {
   $id = [Security.Principal.WindowsIdentity]::GetCurrent()
@@ -61,6 +62,19 @@ function Append-ContextLog([string]$msg) {
     Add-Content -LiteralPath $script:ContextPath -Value $line
     Write-StoreEvent -Kind "context" -Message $msg -Payload @{ ts = $ts; context = $msg }
   } catch {}
+}
+
+function Should-Log([string]$Level) {
+  if (-not $Level) { return $true }
+  if ($script:LogLevel -ieq "Debug") { return $true }
+  return ($Level -in @("", "Info", "Normal"))
+}
+
+function Set-LogLevel([string]$Level) {
+  if ([string]::IsNullOrWhiteSpace($Level)) { return }
+  $target = $(if ($Level -ieq "Debug") { "Debug" } else { "Normal" })
+  $script:LogLevel = $target
+  Log "Log level set to $target" -Level "Info"
 }
 
 function Write-StoreEvent {
@@ -181,10 +195,11 @@ function Sanitize-LogMessage([string]$msg) {
   return $out
 }
 
-function Log([string]$msg) {
+function Log([string]$msg, [string]$Level = "Info", [switch]$NoContext) {
+  if (-not (Should-Log $Level)) { return }
   $ts = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
   $msg = Sanitize-LogMessage $msg
-    Append-ContextLog $msg
+  if (-not $NoContext) { Append-ContextLog $msg }
   if ($script:txtLog) {
     $script:txtLog.AppendText("[$ts] $msg`r`n")
     $script:txtLog.SelectionStart = $script:txtLog.TextLength
@@ -198,6 +213,8 @@ function Log([string]$msg) {
     Write-Host "[$ts] $msg"
   }
 }
+
+function Log-Debug([string]$msg) { Log $msg -Level "Debug" }
 
 # Helper to wrap UI actions and avoid unhandled exceptions bringing down the form
 function Invoke-UiAction {
@@ -1043,6 +1060,13 @@ $cmbUserMode.DropDownStyle = "DropDownList"
 $cmbUserMode.SelectedIndex = 0
 $grpDiag.Controls.Add($cmbUserMode)
 
+$chkDebugLog = New-Object System.Windows.Forms.CheckBox
+$chkDebugLog.Text = "Debug logging"
+$chkDebugLog.Location = New-Object System.Drawing.Point(310, 28)
+$chkDebugLog.Size = New-Object System.Drawing.Size(150, 24)
+$chkDebugLog.Font = $font
+$grpDiag.Controls.Add($chkDebugLog)
+
 $btnSmoke = New-Object System.Windows.Forms.Button
 $btnSmoke.Text = "Run smoke test"
 $btnSmoke.Location = New-Object System.Drawing.Point(16, 70)
@@ -1311,6 +1335,11 @@ $cmbUserMode.Add_SelectedIndexChanged( (Wrap-UiAction -Name "user-mode" -Action 
   Set-AdvancedMode $adv
 }))
 
+$chkDebugLog.Add_CheckedChanged( (Wrap-UiAction -Name "log-level" -Action {
+  $lvl = $(if ($chkDebugLog.Checked) { "Debug" } else { "Normal" })
+  Set-LogLevel $lvl
+}))
+
 $btnSmoke.Add_Click( (Wrap-UiAction -Name "smoke" -Action { Run-SmokeTest }) )
 
 $btnPytest.Add_Click( (Wrap-UiAction -Name "pytest" -Action {
@@ -1408,6 +1437,7 @@ $cmbMode.Add_SelectedIndexChanged( (Wrap-UiAction -Name "mode-change" -Action {
 
 $form.Add_Shown( (Wrap-UiAction -Name "form-shown" -Action {
   Set-AdvancedMode $false
+  $chkDebugLog.Checked = ($script:LogLevel -ieq "Debug")
   Log "PLM Environment Admin GUI started (Admin)."
   Log "Tip: Click Detect. If missing components, click Install/Repair. For updates, click Update."
   $s = Detect-Environment

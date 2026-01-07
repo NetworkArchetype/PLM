@@ -30,6 +30,7 @@ This guide covers the Admin GUI and the CLI operator console. Both provide the s
   - Buttons: smoke test, full pytest, CUDA probe, refresh env report
   - Consoles: debug console, venv/option 2 console
   - Export debug report; open Windows Resource Monitor
+  - Log level: toggle Normal/Debug logging (also available in CLI via `--log-level debug` or `--log-debug`)
 - **Log Pane**: live output with secret redaction
 
 ## CLI walkthrough
@@ -52,6 +53,7 @@ This guide covers the Admin GUI and the CLI operator console. Both provide the s
   - `--enable-cuda`, `--disable-cuda`
   - `--install-repair`, `--update-components`
   - `--launch-gui`, `--debug-console`, `--venv-console`, `--export-report`
+  - `--log-level normal|debug` (or `--log-debug` shortcut)
   - `--menu` (default), `--curses`
 
 ## Tips

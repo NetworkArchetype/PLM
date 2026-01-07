@@ -95,6 +95,23 @@ $results += Step -Name "Native CUDA/TensorFlow detect" -Body {
   & $python $detectScript | Tee-Object -FilePath (Join-Path $debugDir "native_detect.json") | Out-Null
 }
 
+# Parse detection results
+$nativeDetect = $null
+if (Test-Path (Join-Path $debugDir "native_detect.json")) {
+  try { $nativeDetect = Get-Content (Join-Path $debugDir "native_detect.json") | ConvertFrom-Json } catch {}
+}
+$cudaDetected = $false
+if ($nativeDetect -and $nativeDetect.nvidia_smi.available) {
+  $cudaDetected = $true
+  Write-Host "CUDA-capable hardware detected. Installing native CUDA support." -ForegroundColor Green
+} else {
+  Write-Host "No CUDA-capable hardware detected. CUDA will be disabled." -ForegroundColor Yellow
+}
+
+if ($cudaDetected) {
+  $results += Step -Name "Install qsimcirq (CUDA)" -Body { & $python -m pip install qsimcirq }
+}
+
 if (-not $ContainerPLM) {
   if (-not $NativeTF) {
     $shell = if (Get-Command pwsh -ErrorAction SilentlyContinue) { "pwsh" } else { "powershell" }

@@ -26,6 +26,24 @@ Ensure-Admin
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
+$repoRoot = Split-Path -Parent (Split-Path -Parent $PSCommandPath)
+$authHelper = Join-Path $repoRoot "scripts/auth_session.ps1"
+if (Test-Path $authHelper) { . $authHelper }
+
+function Ensure-AuthToken {
+  try {
+    $token = Get-PlmAuthToken -Mode "GUI" -PromptTitle "PLM Admin GUI authentication"
+    $env:PLM_AUTH_TOKEN = $token
+    $env:PLM_AUTH_HASH = Get-PlmAuthTokenHash
+  } catch {
+    [System.Windows.Forms.MessageBox]::Show("Authentication required: $($_.Exception.Message)","Authentication Error",
+      [System.Windows.Forms.MessageBoxButtons]::OK,
+      [System.Windows.Forms.MessageBoxIcon]::Error) | Out-Null
+    exit 1
+  }
+}
+Ensure-AuthToken
+
 function Add-StatusRow {
   param(
     $parent,
@@ -53,6 +71,20 @@ function Add-StatusRow {
 # Logging (defined after UI textbox exists, but keep helper)
 # -----------------------------
 $script:txtLog = $null
+$script:LogLevel = "Normal"  # Normal|Debug
+
+function Should-Log([string]$Level) {
+  if ($script:LogLevel -ieq "Debug") { return $true }
+  return ($Level -in @($null, "", "Info", "Normal"))
+}
+
+function Set-LogLevel([string]$Level) {
+  if ([string]::IsNullOrWhiteSpace($Level)) { return }
+  $target = $(if ($Level -ieq "Debug") { "Debug" } else { "Normal" })
+  $script:LogLevel = $target
+  Log "Log level set to $target" "Info"
+}
+
 function Sanitize-LogMessage([string]$msg) {
   if (-not $msg) { return $msg }
 
@@ -67,7 +99,8 @@ function Sanitize-LogMessage([string]$msg) {
   $out = $out -replace '(?i)\b(token|secret|api[_-]?key|client_secret)\b\s*[:=]\s*[^\s;]+', '$1=REDACTED'
   return $out
 }
-function Log([string]$msg) {
+function Log([string]$msg, [string]$Level = "Info") {
+  if (-not (Should-Log $Level)) { return }
   $ts = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
   $msg = Sanitize-LogMessage $msg
   if ($script:txtLog) {
@@ -635,6 +668,13 @@ $cmbMode.DropDownStyle = "DropDownList"
 $cmbMode.SelectedIndex = 0
 $grpActions.Controls.Add($cmbMode)
 
+$chkDebugLog = New-Object System.Windows.Forms.CheckBox
+$chkDebugLog.Text = "Debug logging"
+$chkDebugLog.Location = New-Object System.Drawing.Point(306, 148)
+$chkDebugLog.Size = New-Object System.Drawing.Size(170, 24)
+$chkDebugLog.Font = $font
+$grpActions.Controls.Add($chkDebugLog)
+
 # Hyper-V status display
 $lblHyperV = New-Object System.Windows.Forms.Label
 $lblHyperV.Text = "Hyper-V:"
@@ -830,7 +870,13 @@ $cmbMode.Add_SelectedIndexChanged({
   Log "Selected mode: $mode"
 })
 
+$chkDebugLog.Add_CheckedChanged({
+  $lvl = $(if ($chkDebugLog.Checked) { "Debug" } else { "Normal" })
+  Set-LogLevel $lvl
+})
+
 $form.Add_Shown({
+  $chkDebugLog.Checked = ($script:LogLevel -ieq "Debug")
   Log "PLM Environment Admin GUI started (Admin)."
   Log "Tip: Click Detect. If missing components, click Install/Repair. For updates, click Update."
   $s = Detect-Environment
