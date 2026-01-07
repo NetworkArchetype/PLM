@@ -156,7 +156,18 @@ function Detect-UbuntuInstalled {
 function Detect-DockerDesktop {
   if (-not (Exists-Cmd "docker")) { return $false }
   try {
-    docker version --format "{{.Server.Version}}" 2>$null | Out-Null
+    $ver = docker version --format "{{.Server.Version}}" 2>$null
+    if ($LASTEXITCODE -eq 0 -and $ver) { return $true }
+    $info = docker info --format "{{.ID}}" 2>$null
+    return ($LASTEXITCODE -eq 0 -and $info)
+  } catch { return $false }
+}
+function Detect-WSLReady {
+  if (-not (Exists-Cmd "wsl")) { return $false }
+  try {
+    $list = wsl.exe -l -q 2>$null
+    if (-not $list) { return $false }
+    wsl.exe --status 2>$null | Out-Null
     return ($LASTEXITCODE -eq 0)
   } catch { return $false }
 }
@@ -173,6 +184,7 @@ function Detect-Environment {
     WSLFeature     = Detect-WSLFeatureEnabled
     VMPFeature     = Detect-VMPFeatureEnabled
     WSL            = Exists-Cmd "wsl"
+    WSLReady       = Detect-WSLReady
     Ubuntu         = Detect-UbuntuInstalled
     Docker         = Detect-DockerDesktop
     HyperV         = Detect-HyperVEnabled
@@ -215,8 +227,10 @@ function Render-Status($s) {
   $script:lblWTValue.ForeColor = Status-Color $s.WindowsTerminal
   $script:lblWTValue.Text      = $(if ($s.WindowsTerminal){"OK"} else {"Missing"})
 
-  $script:lblWSLFeatValue.ForeColor = Status-Color ($s.WSLFeature -and $s.VMPFeature)
-  $script:lblWSLFeatValue.Text      = $(if ($s.WSLFeature -and $s.VMPFeature){"Enabled"} else {"Disabled"})
+  $wslEnabled = ($s.WSLFeature -and $s.VMPFeature)
+  $wslReady = ($wslEnabled -and $s.WSLReady)
+  $script:lblWSLFeatValue.ForeColor = Status-Color $wslReady
+  $script:lblWSLFeatValue.Text      = $(if ($wslReady){"Enabled"} elseif ($wslEnabled){"Installed/Needs reboot"} else {"Disabled"})
 
   $script:lblUbuntuValue.ForeColor = Status-Color $s.Ubuntu
   $script:lblUbuntuValue.Text      = $(if ($s.Ubuntu){"Installed"} else {"Missing"})

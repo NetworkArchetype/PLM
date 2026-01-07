@@ -76,12 +76,30 @@ def get_python() -> Path:
 
 
 def detect_environment() -> Dict[str, bool]:
+    def docker_ready() -> bool:
+        if not which("docker"):
+            return False
+        code, out, _ = run(["docker", "version", "--format", "{{.Server.Version}}"], capture=True)
+        if code == 0 and out:
+            return True
+        code, out, _ = run(["docker", "info", "--format", "{{.ID}}"], capture=True)
+        return code == 0 and bool(out)
+
+    def wsl_ready() -> bool:
+        if not which("wsl"):
+            return False
+        code, out, _ = run(["wsl", "-l", "-q"], capture=True)
+        if code != 0 or not out.strip():
+            return False
+        status_code, _, _ = run(["wsl", "--status"], capture=True)
+        return status_code == 0
+
     env = {
         "git": bool(which("git")),
         "python": bool(which("python")),
         "winget": bool(which("winget")),
-        "wsl": bool(which("wsl")),
-        "docker": bool(which("docker")),
+        "wsl": wsl_ready(),
+        "docker": docker_ready(),
         "wt": bool(which("wt")),
         "code": bool(which("code")),
         "nvidia_smi": bool(which("nvidia-smi")),
