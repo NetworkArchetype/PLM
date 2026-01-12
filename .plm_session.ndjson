@@ -1,0 +1,255 @@
+{"msg":"Guided mode enabled: use quick smoke + safe actions.","user":"johar","source":"gui","session":"39551304-05e3-496b-b860-e68bfadbf807","ts":"2026-01-07T04:47:15"}
+{"msg":"PLM Environment Admin GUI started (Admin).","user":"johar","source":"gui","session":"39551304-05e3-496b-b860-e68bfadbf807","ts":"2026-01-07T04:47:15"}
+{"msg":"Tip: Click Detect. If missing components, click Install/Repair. For updates, click Update.","user":"johar","source":"gui","session":"39551304-05e3-496b-b860-e68bfadbf807","ts":"2026-01-07T04:47:15"}
+{"msg":"Guided mode enabled: use quick smoke + safe actions.","user":"johar","source":"gui","session":"d859e51b-f6f8-4621-8917-df04c11657ce","ts":"2026-01-07T04:54:44"}
+{"msg":"PLM Environment Admin GUI started (Admin).","user":"johar","source":"gui","session":"d859e51b-f6f8-4621-8917-df04c11657ce","ts":"2026-01-07T04:54:44"}
+{"msg":"Tip: Click Detect. If missing components, click Install/Repair. For updates, click Update.","user":"johar","source":"gui","session":"d859e51b-f6f8-4621-8917-df04c11657ce","ts":"2026-01-07T04:54:44"}
+{"ts":"2026-01-07T13:04:11.500304","session":"ced258c1-f05c-4a28-8c8e-b119dd434a45","source":"cli","user":"johar","msg":"cli:env"}
+{"ts":"2026-01-07T13:06:14.775875+00:00","session":"07ae154a-10be-49a8-9c3c-4fabb5352f73","source":"cli","user":"johar","msg":"cli:Smoke test"}
+{"ts":"2026-01-07T13:06:18.637868+00:00","session":"07ae154a-10be-49a8-9c3c-4fabb5352f73","source":"cli","user":"johar","msg":"cli:Smoke test:exit=0"}
+{"msg":"Action \u0027form-shown\u0027 starting...","user":"johar","source":"gui","session":"e2fe9e28-5643-48d9-962a-95ee4a84dc5b","ts":"2026-01-07T05:30:36"}
+{"msg":"Guided mode enabled: use quick smoke + safe actions.","user":"johar","source":"gui","session":"e2fe9e28-5643-48d9-962a-95ee4a84dc5b","ts":"2026-01-07T05:30:36"}
+{"msg":"PLM Environment Admin GUI started (Admin).","user":"johar","source":"gui","session":"e2fe9e28-5643-48d9-962a-95ee4a84dc5b","ts":"2026-01-07T05:30:36"}
+{"msg":"Tip: Click Detect. If missing components, click Install/Repair. For updates, click Update.","user":"johar","source":"gui","session":"e2fe9e28-5643-48d9-962a-95ee4a84dc5b","ts":"2026-01-07T05:30:36"}
+{"msg":"Action \u0027form-shown\u0027 failed: Cannot process argument transformation on parameter \u0027ok\u0027. Cannot convert value \"\" to type \"System.Boolean\". Boolean parameters accept only Boolean values and numbers, such as $True, $False, 1 or 0.","user":"johar","source":"gui","session":"e2fe9e28-5643-48d9-962a-95ee4a84dc5b","ts":"2026-01-07T05:30:38"}
+{"msg":"Action \u0027form-shown\u0027 starting...","user":"johar","source":"gui","session":"27ba4347-de81-4b5d-be6a-4d88db244915","ts":"2026-01-07T05:37:23"}
+{"msg":"Guided mode enabled: use quick smoke + safe actions.","user":"johar","source":"gui","session":"27ba4347-de81-4b5d-be6a-4d88db244915","ts":"2026-01-07T05:37:23"}
+{"msg":"PLM Environment Admin GUI started (Admin).","user":"johar","source":"gui","session":"27ba4347-de81-4b5d-be6a-4d88db244915","ts":"2026-01-07T05:37:23"}
+{"msg":"Tip: Click Detect. If missing components, click Install/Repair. For updates, click Update.","user":"johar","source":"gui","session":"27ba4347-de81-4b5d-be6a-4d88db244915","ts":"2026-01-07T05:37:23"}
+{"msg":"Heads-up: another session (johar) active recently at 2026-01-07T05:30:38.","user":"johar","source":"gui","session":"27ba4347-de81-4b5d-be6a-4d88db244915","ts":"2026-01-07T05:37:26"}
+{"msg":"Action \u0027form-shown\u0027 starting...","user":"johar","source":"gui","session":"a56627f4-1aa3-422d-979a-8f1577fde33c","ts":"2026-01-07T05:38:22"}
+{"msg":"Guided mode enabled: use quick smoke + safe actions.","user":"johar","source":"gui","session":"a56627f4-1aa3-422d-979a-8f1577fde33c","ts":"2026-01-07T05:38:22"}
+{"msg":"PLM Environment Admin GUI started (Admin).","user":"johar","source":"gui","session":"a56627f4-1aa3-422d-979a-8f1577fde33c","ts":"2026-01-07T05:38:22"}
+{"msg":"Tip: Click Detect. If missing components, click Install/Repair. For updates, click Update.","user":"johar","source":"gui","session":"a56627f4-1aa3-422d-979a-8f1577fde33c","ts":"2026-01-07T05:38:22"}
+{"msg":"Heads-up: another session (johar) active recently at 2026-01-07T05:37:26.","user":"johar","source":"gui","session":"a56627f4-1aa3-422d-979a-8f1577fde33c","ts":"2026-01-07T05:38:24"}
+{"ts":"2026-01-07T13:43:53.608654+00:00","session":"9aa16731-a263-448f-868b-6a43a84ca84d","source":"cli","user":"johar","msg":"cli:env"}
+{"ts":"2026-01-07T13:48:19.501328+00:00","session":"7270ad3c-ed5d-455c-ba6d-dfe405b05824","source":"cli","user":"johar","msg":"cli:env"}
+{"ts":"2026-01-07T13:58:40.243765+00:00","session":"31fbfdea-601a-4c00-82df-712e11ba9ea8","source":"cli","user":"johar","msg":"cli:probe-cuda"}
+{"ts":"2026-01-07T14:20:04.219671+00:00","session":"a9b76caa-8961-4098-a70c-799efbe76a22","source":"cli","user":"johar","msg":"cli:probe-cuda"}
+{"ts":"2026-01-07T15:00:59.189171+00:00","session":"ba6d6841-27eb-47c2-ac80-a8480c40c724","source":"cli","user":"johar","msg":"info:Log level set to debug"}
+{"ts":"2026-01-07T15:00:59.512691+00:00","session":"ba6d6841-27eb-47c2-ac80-a8480c40c724","source":"cli","user":"johar","msg":"info:Environment detection:"}
+{"ts":"2026-01-07T15:00:59.523128+00:00","session":"ba6d6841-27eb-47c2-ac80-a8480c40c724","source":"cli","user":"johar","msg":"cli:env"}
+{"ts":"2026-01-07T15:00:59.710533+00:00","session":"8677f724-4aa9-43c9-817d-59faccdbe47d","source":"cli","user":"johar","msg":"info:Log level set to debug"}
+{"ts":"2026-01-07T15:00:59.721999+00:00","session":"8677f724-4aa9-43c9-817d-59faccdbe47d","source":"cli","user":"johar","msg":"cli:probe-cuda"}
+{"ts":"2026-01-07T15:01:00.178834+00:00","session":"8677f724-4aa9-43c9-817d-59faccdbe47d","source":"cli","user":"johar","msg":"info:- tensorflow not ready (ERROR No module named 'tensorflow')"}
+{"ts":"2026-01-07T15:01:02.282391+00:00","session":"8677f724-4aa9-43c9-817d-59faccdbe47d","source":"cli","user":"johar","msg":"info:- docker GPU probe OK"}
+{"ts":"2026-01-07T15:07:27.819468+00:00","session":"1e6072fb-be8a-4222-97f1-6df30b07b5ad","source":"cli","user":"johar","msg":"info:Log level set to debug"}
+{"ts":"2026-01-07T15:07:28.128523+00:00","session":"1e6072fb-be8a-4222-97f1-6df30b07b5ad","source":"cli","user":"johar","msg":"info:Environment detection:"}
+{"ts":"2026-01-07T15:07:28.148801+00:00","session":"1e6072fb-be8a-4222-97f1-6df30b07b5ad","source":"cli","user":"johar","msg":"cli:env"}
+{"ts":"2026-01-07T15:07:28.371909+00:00","session":"ce8de37a-e729-4ae4-9f21-45c878c78457","source":"cli","user":"johar","msg":"info:Log level set to debug"}
+{"ts":"2026-01-07T15:07:28.383457+00:00","session":"ce8de37a-e729-4ae4-9f21-45c878c78457","source":"cli","user":"johar","msg":"cli:probe-cuda"}
+{"ts":"2026-01-07T15:07:28.871317+00:00","session":"ce8de37a-e729-4ae4-9f21-45c878c78457","source":"cli","user":"johar","msg":"info:- tensorflow not ready (ERROR No module named 'tensorflow')"}
+{"ts":"2026-01-07T15:07:30.543651+00:00","session":"ce8de37a-e729-4ae4-9f21-45c878c78457","source":"cli","user":"johar","msg":"info:- docker GPU probe OK"}
+{"ts":"2026-01-07T15:08:00.290304+00:00","session":"03c21895-79a8-4404-895c-1378c9e35a70","source":"cli","user":"johar","msg":"info:Log level set to debug"}
+{"ts":"2026-01-07T15:08:00.676188+00:00","session":"03c21895-79a8-4404-895c-1378c9e35a70","source":"cli","user":"johar","msg":"info:Environment detection:"}
+{"ts":"2026-01-07T15:08:00.697399+00:00","session":"03c21895-79a8-4404-895c-1378c9e35a70","source":"cli","user":"johar","msg":"cli:env"}
+{"ts":"2026-01-07T15:08:00.910407+00:00","session":"c62c6749-115c-43a7-a373-68eb74259716","source":"cli","user":"johar","msg":"info:Log level set to debug"}
+{"ts":"2026-01-07T15:08:00.922737+00:00","session":"c62c6749-115c-43a7-a373-68eb74259716","source":"cli","user":"johar","msg":"cli:probe-cuda"}
+{"ts":"2026-01-07T15:08:01.356509+00:00","session":"c62c6749-115c-43a7-a373-68eb74259716","source":"cli","user":"johar","msg":"info:- tensorflow not ready (ERROR No module named 'tensorflow')"}
+{"ts":"2026-01-07T15:08:03.222575+00:00","session":"c62c6749-115c-43a7-a373-68eb74259716","source":"cli","user":"johar","msg":"info:- docker GPU probe OK"}
+{"ts":"2026-01-07T15:08:25.295833+00:00","session":"656860d0-70f8-4b81-932e-6f1604b4c88c","source":"cli","user":"johar","msg":"info:Log level set to debug"}
+{"ts":"2026-01-07T15:08:25.574015+00:00","session":"656860d0-70f8-4b81-932e-6f1604b4c88c","source":"cli","user":"johar","msg":"info:Environment detection:"}
+{"ts":"2026-01-07T15:08:25.587535+00:00","session":"656860d0-70f8-4b81-932e-6f1604b4c88c","source":"cli","user":"johar","msg":"cli:env"}
+{"ts":"2026-01-07T15:08:25.804253+00:00","session":"da8b6444-0ada-4883-8947-77ac5262e968","source":"cli","user":"johar","msg":"info:Log level set to debug"}
+{"ts":"2026-01-07T15:08:25.815184+00:00","session":"da8b6444-0ada-4883-8947-77ac5262e968","source":"cli","user":"johar","msg":"cli:probe-cuda"}
+{"ts":"2026-01-07T15:08:26.264613+00:00","session":"da8b6444-0ada-4883-8947-77ac5262e968","source":"cli","user":"johar","msg":"info:- tensorflow not ready (ERROR No module named 'tensorflow')"}
+{"ts":"2026-01-07T15:08:28.519714+00:00","session":"da8b6444-0ada-4883-8947-77ac5262e968","source":"cli","user":"johar","msg":"info:- docker GPU probe OK"}
+{"ts":"2026-01-07T15:08:29.657326+00:00","session":"510c4d93-e29c-4f7a-a89a-5f23e3336859","source":"cli","user":"johar","msg":"info:Environment detection:"}
+{"ts":"2026-01-07T15:08:29.670900+00:00","session":"510c4d93-e29c-4f7a-a89a-5f23e3336859","source":"cli","user":"johar","msg":"cli:env"}
+{"ts":"2026-01-07T15:11:06.569922+00:00","session":"491c97a9-01cd-438b-9d16-0af4f6038484","source":"cli","user":"johar","msg":"info:Log level set to debug"}
+{"ts":"2026-01-07T15:11:06.982456+00:00","session":"491c97a9-01cd-438b-9d16-0af4f6038484","source":"cli","user":"johar","msg":"info:Environment detection:"}
+{"ts":"2026-01-07T15:11:06.994455+00:00","session":"491c97a9-01cd-438b-9d16-0af4f6038484","source":"cli","user":"johar","msg":"cli:env"}
+{"ts":"2026-01-07T15:11:07.228913+00:00","session":"c82c33ff-969b-43e6-b398-0ff178e89230","source":"cli","user":"johar","msg":"info:Log level set to debug"}
+{"ts":"2026-01-07T15:11:07.240934+00:00","session":"c82c33ff-969b-43e6-b398-0ff178e89230","source":"cli","user":"johar","msg":"cli:probe-cuda"}
+{"ts":"2026-01-07T15:11:07.853776+00:00","session":"c82c33ff-969b-43e6-b398-0ff178e89230","source":"cli","user":"johar","msg":"info:- tensorflow not ready (ERROR No module named 'tensorflow')"}
+{"ts":"2026-01-07T15:11:10.118846+00:00","session":"c82c33ff-969b-43e6-b398-0ff178e89230","source":"cli","user":"johar","msg":"info:- docker GPU probe OK (CUDA via container ready)"}
+{"ts":"2026-01-07T15:11:11.568115+00:00","session":"980cb4d4-4d57-47ac-8010-22801da4f260","source":"cli","user":"johar","msg":"info:Environment detection:"}
+{"ts":"2026-01-07T15:11:11.577591+00:00","session":"980cb4d4-4d57-47ac-8010-22801da4f260","source":"cli","user":"johar","msg":"cli:env"}
+{"ts":"2026-01-07T15:11:40.184272+00:00","session":"e15e0dbb-3281-4746-8fcc-beb0586e1a39","source":"cli","user":"johar","msg":"info:Log level set to debug"}
+{"ts":"2026-01-07T15:11:40.505509+00:00","session":"e15e0dbb-3281-4746-8fcc-beb0586e1a39","source":"cli","user":"johar","msg":"info:Environment detection:"}
+{"ts":"2026-01-07T15:11:40.516351+00:00","session":"e15e0dbb-3281-4746-8fcc-beb0586e1a39","source":"cli","user":"johar","msg":"cli:env"}
+{"ts":"2026-01-07T15:11:40.735447+00:00","session":"14a788ab-6e96-4d1e-ab42-ece496506912","source":"cli","user":"johar","msg":"info:Log level set to debug"}
+{"ts":"2026-01-07T15:11:40.745964+00:00","session":"14a788ab-6e96-4d1e-ab42-ece496506912","source":"cli","user":"johar","msg":"cli:probe-cuda"}
+{"ts":"2026-01-07T15:11:41.256084+00:00","session":"14a788ab-6e96-4d1e-ab42-ece496506912","source":"cli","user":"johar","msg":"info:- tensorflow not ready (ERROR No module named 'tensorflow')"}
+{"ts":"2026-01-07T15:11:43.026393+00:00","session":"14a788ab-6e96-4d1e-ab42-ece496506912","source":"cli","user":"johar","msg":"info:- docker GPU probe OK (CUDA via container ready)"}
+{"ts":"2026-01-07T15:11:44.123046+00:00","session":"a67c53b0-04dc-489d-b4ba-9e7097a24326","source":"cli","user":"johar","msg":"info:Environment detection:"}
+{"ts":"2026-01-07T15:11:44.129388+00:00","session":"a67c53b0-04dc-489d-b4ba-9e7097a24326","source":"cli","user":"johar","msg":"cli:env"}
+{"ts":"2026-01-07T15:14:09.954880+00:00","session":"b39097c3-a439-417f-a15d-0fdbd4c50745","source":"cli","user":"johar","msg":"info:Log level set to debug"}
+{"ts":"2026-01-07T15:14:10.480290+00:00","session":"b39097c3-a439-417f-a15d-0fdbd4c50745","source":"cli","user":"johar","msg":"info:Environment detection:"}
+{"ts":"2026-01-07T15:14:10.493632+00:00","session":"b39097c3-a439-417f-a15d-0fdbd4c50745","source":"cli","user":"johar","msg":"cli:env"}
+{"ts":"2026-01-07T15:14:10.721879+00:00","session":"de593126-54c3-4a55-b1cd-caf1491ed641","source":"cli","user":"johar","msg":"info:Log level set to debug"}
+{"ts":"2026-01-07T15:14:10.731080+00:00","session":"de593126-54c3-4a55-b1cd-caf1491ed641","source":"cli","user":"johar","msg":"cli:probe-cuda"}
+{"ts":"2026-01-07T15:14:11.154320+00:00","session":"de593126-54c3-4a55-b1cd-caf1491ed641","source":"cli","user":"johar","msg":"info:- tensorflow not ready (ERROR No module named 'tensorflow')"}
+{"ts":"2026-01-07T15:14:12.831704+00:00","session":"de593126-54c3-4a55-b1cd-caf1491ed641","source":"cli","user":"johar","msg":"info:- docker GPU probe OK (CUDA via container ready)"}
+{"ts":"2026-01-07T15:14:25.299191+00:00","session":"b68560ae-970d-4e9c-ad2f-f9434e354621","source":"cli","user":"johar","msg":"info:Log level set to debug"}
+{"ts":"2026-01-07T15:14:25.631936+00:00","session":"b68560ae-970d-4e9c-ad2f-f9434e354621","source":"cli","user":"johar","msg":"info:Environment detection:"}
+{"ts":"2026-01-07T15:14:25.643442+00:00","session":"b68560ae-970d-4e9c-ad2f-f9434e354621","source":"cli","user":"johar","msg":"cli:env"}
+{"ts":"2026-01-07T15:14:25.859119+00:00","session":"3824f035-f7d7-495a-84b7-0b9cf5447082","source":"cli","user":"johar","msg":"info:Log level set to debug"}
+{"ts":"2026-01-07T15:14:25.871800+00:00","session":"3824f035-f7d7-495a-84b7-0b9cf5447082","source":"cli","user":"johar","msg":"cli:probe-cuda"}
+{"ts":"2026-01-07T15:14:26.490059+00:00","session":"3824f035-f7d7-495a-84b7-0b9cf5447082","source":"cli","user":"johar","msg":"info:- tensorflow not ready (ERROR No module named 'tensorflow')"}
+{"ts":"2026-01-07T15:14:28.371197+00:00","session":"3824f035-f7d7-495a-84b7-0b9cf5447082","source":"cli","user":"johar","msg":"info:- docker GPU probe OK (CUDA via container ready)"}
+{"ts":"2026-01-07T15:27:57.930109+00:00","session":"44ac23ea-6a4e-4f37-b63c-f77c02841442","source":"cli","user":"johar","msg":"info:Installing TensorFlow GPU with C:\\Users\\johar\\OneDrive\\Documents\\ISBC\\GitRepos\\plm\\PLM\\venv\\Scripts\\python.exe ..."}
+{"ts":"2026-01-07T15:28:32.557981+00:00","session":"5fb16f85-6748-4ecb-98b1-8ce43eebb824","source":"cli","user":"johar","msg":"info:Installing TensorFlow GPU with C:\\Users\\johar\\OneDrive\\Documents\\ISBC\\GitRepos\\plm\\PLM\\venv\\Scripts\\python.exe ..."}
+{"ts":"2026-01-07T15:28:59.662332+00:00","session":"a57396e2-49bd-42b1-b76c-dc3b843faeb0","source":"cli","user":"johar","msg":"info:Installing TensorFlow GPU with C:\\Users\\johar\\OneDrive\\Documents\\ISBC\\GitRepos\\plm\\PLM\\venv\\Scripts\\python.exe ..."}
+{"ts":"2026-01-07T15:30:14.527802+00:00","session":"daa22666-3712-4d8c-a5e8-92821e670cc4","source":"cli","user":"johar","msg":"info:Log level set to debug"}
+{"ts":"2026-01-07T15:30:14.827371+00:00","session":"daa22666-3712-4d8c-a5e8-92821e670cc4","source":"cli","user":"johar","msg":"info:Environment detection:"}
+{"ts":"2026-01-07T15:30:14.849977+00:00","session":"daa22666-3712-4d8c-a5e8-92821e670cc4","source":"cli","user":"johar","msg":"cli:env"}
+{"ts":"2026-01-07T15:30:15.051105+00:00","session":"ec9267a4-f595-48c0-bdcd-a4786fe5b933","source":"cli","user":"johar","msg":"info:Log level set to debug"}
+{"ts":"2026-01-07T15:30:15.063883+00:00","session":"ec9267a4-f595-48c0-bdcd-a4786fe5b933","source":"cli","user":"johar","msg":"cli:probe-cuda"}
+{"ts":"2026-01-07T15:30:17.098334+00:00","session":"ec9267a4-f595-48c0-bdcd-a4786fe5b933","source":"cli","user":"johar","msg":"info:- tensorflow not ready (ERROR No module named 'tensorflow')"}
+{"ts":"2026-01-07T15:30:22.492378+00:00","session":"ec9267a4-f595-48c0-bdcd-a4786fe5b933","source":"cli","user":"johar","msg":"info:- docker GPU probe OK (CUDA via container ready)"}
+{"ts":"2026-01-07T15:30:33.788287+00:00","session":"5fd49169-fb29-484b-9251-aaacb97ccb96","source":"cli","user":"johar","msg":"info:Log level set to debug"}
+{"ts":"2026-01-07T15:30:34.079761+00:00","session":"5fd49169-fb29-484b-9251-aaacb97ccb96","source":"cli","user":"johar","msg":"info:Environment detection:"}
+{"ts":"2026-01-07T15:30:34.091509+00:00","session":"5fd49169-fb29-484b-9251-aaacb97ccb96","source":"cli","user":"johar","msg":"cli:env"}
+{"ts":"2026-01-07T15:30:34.411575+00:00","session":"f86dc44f-34b1-47f7-b5e0-e1cb9740eadb","source":"cli","user":"johar","msg":"info:Log level set to debug"}
+{"ts":"2026-01-07T15:30:34.421412+00:00","session":"f86dc44f-34b1-47f7-b5e0-e1cb9740eadb","source":"cli","user":"johar","msg":"cli:probe-cuda"}
+{"ts":"2026-01-07T15:30:36.122717+00:00","session":"f86dc44f-34b1-47f7-b5e0-e1cb9740eadb","source":"cli","user":"johar","msg":"info:- tensorflow not ready (ERROR No module named 'tensorflow')"}
+{"ts":"2026-01-07T15:30:40.633762+00:00","session":"f86dc44f-34b1-47f7-b5e0-e1cb9740eadb","source":"cli","user":"johar","msg":"info:- docker GPU probe OK (CUDA via container ready)"}
+{"ts":"2026-01-07T15:31:30.047561+00:00","session":"36ff02b1-6ef8-4d73-9766-8311f5b47fca","source":"cli","user":"johar","msg":"info:Log level set to debug"}
+{"ts":"2026-01-07T15:31:30.351946+00:00","session":"36ff02b1-6ef8-4d73-9766-8311f5b47fca","source":"cli","user":"johar","msg":"info:Environment detection:"}
+{"ts":"2026-01-07T15:31:30.371107+00:00","session":"36ff02b1-6ef8-4d73-9766-8311f5b47fca","source":"cli","user":"johar","msg":"cli:env"}
+{"ts":"2026-01-07T15:31:30.610120+00:00","session":"30f881de-0681-494b-894d-f591b0d5ac75","source":"cli","user":"johar","msg":"info:Log level set to debug"}
+{"ts":"2026-01-07T15:31:30.628624+00:00","session":"30f881de-0681-494b-894d-f591b0d5ac75","source":"cli","user":"johar","msg":"cli:probe-cuda"}
+{"ts":"2026-01-07T15:31:31.825330+00:00","session":"30f881de-0681-494b-894d-f591b0d5ac75","source":"cli","user":"johar","msg":"info:- tensorflow not ready (ERROR No module named 'tensorflow')"}
+{"ts":"2026-01-07T15:31:36.943907+00:00","session":"30f881de-0681-494b-894d-f591b0d5ac75","source":"cli","user":"johar","msg":"info:- docker GPU probe OK (CUDA via container ready)"}
+{"ts":"2026-01-07T15:31:37.219686+00:00","session":"ed0d2f6b-4e36-46db-92d8-76fd9efa57b9","source":"cli","user":"johar","msg":"info:Installing TensorFlow GPU with C:\\Users\\johar\\OneDrive\\Documents\\ISBC\\GitRepos\\plm\\PLM\\venv\\Scripts\\python.exe ..."}
+{"ts":"2026-01-07T15:32:12.924661+00:00","session":"761ead9c-1fa6-48dd-bfd9-6832336ceb93","source":"cli","user":"johar","msg":"info:Log level set to debug"}
+{"ts":"2026-01-07T15:32:13.274682+00:00","session":"761ead9c-1fa6-48dd-bfd9-6832336ceb93","source":"cli","user":"johar","msg":"info:Environment detection:"}
+{"ts":"2026-01-07T15:32:13.296879+00:00","session":"761ead9c-1fa6-48dd-bfd9-6832336ceb93","source":"cli","user":"johar","msg":"cli:env"}
+{"ts":"2026-01-07T15:32:13.521895+00:00","session":"4564f192-6138-47af-985d-85de97377962","source":"cli","user":"johar","msg":"info:Log level set to debug"}
+{"ts":"2026-01-07T15:32:13.533175+00:00","session":"4564f192-6138-47af-985d-85de97377962","source":"cli","user":"johar","msg":"cli:probe-cuda"}
+{"ts":"2026-01-07T15:32:15.191233+00:00","session":"4564f192-6138-47af-985d-85de97377962","source":"cli","user":"johar","msg":"info:- tensorflow not ready (ERROR No module named 'tensorflow')"}
+{"ts":"2026-01-07T15:32:18.868805+00:00","session":"4564f192-6138-47af-985d-85de97377962","source":"cli","user":"johar","msg":"info:- docker GPU probe OK (CUDA via container ready)"}
+{"ts":"2026-01-07T15:32:19.150697+00:00","session":"0ed926a4-c796-4ed0-ad71-4160450f59f0","source":"cli","user":"johar","msg":"info:Installing TensorFlow GPU with C:\\Users\\johar\\OneDrive\\Documents\\ISBC\\GitRepos\\plm\\PLM\\venv\\Scripts\\python.exe ..."}
+{"ts":"2026-01-07T15:32:25.691732+00:00","session":"0ed926a4-c796-4ed0-ad71-4160450f59f0","source":"cli","user":"johar","msg":"info:tensorflow[and-cuda] failed; falling back to CPU build (tensorflow)."}
+{"ts":"2026-01-07T15:34:23.206852+00:00","session":"c559f577-ced8-4ea0-85f1-67056cb389ca","source":"cli","user":"johar","msg":"info:Log level set to debug"}
+{"ts":"2026-01-07T15:34:23.483660+00:00","session":"c559f577-ced8-4ea0-85f1-67056cb389ca","source":"cli","user":"johar","msg":"info:Environment detection:"}
+{"ts":"2026-01-07T15:34:23.493242+00:00","session":"c559f577-ced8-4ea0-85f1-67056cb389ca","source":"cli","user":"johar","msg":"cli:env"}
+{"ts":"2026-01-07T15:34:23.676079+00:00","session":"50950416-3d87-4700-89fe-6a2e685fdd8c","source":"cli","user":"johar","msg":"info:Log level set to debug"}
+{"ts":"2026-01-07T15:34:23.688013+00:00","session":"50950416-3d87-4700-89fe-6a2e685fdd8c","source":"cli","user":"johar","msg":"cli:probe-cuda"}
+{"ts":"2026-01-07T15:34:39.338782+00:00","session":"50950416-3d87-4700-89fe-6a2e685fdd8c","source":"cli","user":"johar","msg":"info:- tensorflow: {\"ver\": \"2.20.0\", \"gpus\": []}"}
+{"ts":"2026-01-07T15:34:43.007469+00:00","session":"50950416-3d87-4700-89fe-6a2e685fdd8c","source":"cli","user":"johar","msg":"info:- docker GPU probe OK (CUDA via container ready)"}
+{"ts":"2026-01-07T15:34:43.304126+00:00","session":"2ce1ca05-ac23-4eb4-a92c-b8321557ee15","source":"cli","user":"johar","msg":"info:Installing TensorFlow GPU with C:\\Users\\johar\\OneDrive\\Documents\\ISBC\\GitRepos\\plm\\PLM\\venv\\Scripts\\python.exe ..."}
+{"ts":"2026-01-07T15:35:59.239242+00:00","session":"45d4f44b-364d-49e0-aaee-192cfa7f27e7","source":"cli","user":"johar","msg":"info:Log level set to debug"}
+{"ts":"2026-01-07T15:35:59.516538+00:00","session":"45d4f44b-364d-49e0-aaee-192cfa7f27e7","source":"cli","user":"johar","msg":"info:Environment detection:"}
+{"ts":"2026-01-07T15:35:59.525800+00:00","session":"45d4f44b-364d-49e0-aaee-192cfa7f27e7","source":"cli","user":"johar","msg":"cli:env"}
+{"ts":"2026-01-07T15:35:59.735048+00:00","session":"03994731-d629-4a47-bb40-e51b149f5aee","source":"cli","user":"johar","msg":"info:Log level set to debug"}
+{"ts":"2026-01-07T15:35:59.751414+00:00","session":"03994731-d629-4a47-bb40-e51b149f5aee","source":"cli","user":"johar","msg":"cli:probe-cuda"}
+{"ts":"2026-01-07T15:36:06.524180+00:00","session":"03994731-d629-4a47-bb40-e51b149f5aee","source":"cli","user":"johar","msg":"info:- tensorflow: {\"ver\": \"2.20.0\", \"gpus\": []}"}
+{"ts":"2026-01-07T15:36:10.763113+00:00","session":"03994731-d629-4a47-bb40-e51b149f5aee","source":"cli","user":"johar","msg":"info:- docker GPU probe OK (CUDA via container ready)"}
+{"ts":"2026-01-07T15:36:11.083261+00:00","session":"c1e753b7-fa70-4f4f-93ae-3bd0e063f943","source":"cli","user":"johar","msg":"info:Installing TensorFlow GPU with C:\\Users\\johar\\OneDrive\\Documents\\ISBC\\GitRepos\\plm\\PLM\\venv\\Scripts\\python.exe ..."}
+{"ts":"2026-01-07T15:37:15.807294+00:00","session":"f0edae5a-d124-43f1-a66e-7b63fcac9280","source":"cli","user":"johar","msg":"info:Log level set to debug"}
+{"ts":"2026-01-07T15:37:16.326373+00:00","session":"f0edae5a-d124-43f1-a66e-7b63fcac9280","source":"cli","user":"johar","msg":"info:Environment detection:"}
+{"ts":"2026-01-07T15:37:16.337971+00:00","session":"f0edae5a-d124-43f1-a66e-7b63fcac9280","source":"cli","user":"johar","msg":"cli:env"}
+{"ts":"2026-01-07T15:37:16.734709+00:00","session":"6f40a6c1-5c6d-4a0a-b993-16b044fa4762","source":"cli","user":"johar","msg":"info:Log level set to debug"}
+{"ts":"2026-01-07T15:37:16.747425+00:00","session":"6f40a6c1-5c6d-4a0a-b993-16b044fa4762","source":"cli","user":"johar","msg":"cli:probe-cuda"}
+{"ts":"2026-01-07T15:37:23.345633+00:00","session":"6f40a6c1-5c6d-4a0a-b993-16b044fa4762","source":"cli","user":"johar","msg":"info:- tensorflow: {\"ver\": \"2.20.0\", \"gpus\": []}"}
+{"ts":"2026-01-07T15:37:28.460161+00:00","session":"6f40a6c1-5c6d-4a0a-b993-16b044fa4762","source":"cli","user":"johar","msg":"info:- docker GPU probe OK (CUDA via container ready)"}
+{"ts":"2026-01-07T15:37:28.774894+00:00","session":"e070f254-9cb5-467d-9936-82e37cfe6586","source":"cli","user":"johar","msg":"info:Installing TensorFlow GPU with C:\\Users\\johar\\OneDrive\\Documents\\ISBC\\GitRepos\\plm\\PLM\\venv\\Scripts\\python.exe ..."}
+{"ts":"2026-01-07T15:38:53.882660+00:00","session":"cf84c702-8860-4c94-a638-24f7f729f795","source":"cli","user":"johar","msg":"info:Log level set to debug"}
+{"ts":"2026-01-07T15:38:54.207684+00:00","session":"cf84c702-8860-4c94-a638-24f7f729f795","source":"cli","user":"johar","msg":"info:Environment detection:"}
+{"ts":"2026-01-07T15:38:54.217277+00:00","session":"cf84c702-8860-4c94-a638-24f7f729f795","source":"cli","user":"johar","msg":"cli:env"}
+{"ts":"2026-01-07T15:38:54.461880+00:00","session":"3d186eef-3f75-4f8d-886e-4e4f8ad4a3dd","source":"cli","user":"johar","msg":"info:Log level set to debug"}
+{"ts":"2026-01-07T15:38:54.473912+00:00","session":"3d186eef-3f75-4f8d-886e-4e4f8ad4a3dd","source":"cli","user":"johar","msg":"cli:probe-cuda"}
+{"ts":"2026-01-07T15:39:00.824211+00:00","session":"3d186eef-3f75-4f8d-886e-4e4f8ad4a3dd","source":"cli","user":"johar","msg":"info:- tensorflow: {\"ver\": \"2.20.0\", \"gpus\": []}"}
+{"ts":"2026-01-07T15:39:05.189866+00:00","session":"3d186eef-3f75-4f8d-886e-4e4f8ad4a3dd","source":"cli","user":"johar","msg":"info:- docker GPU probe OK (CUDA via container ready)"}
+{"ts":"2026-01-07T15:39:06.754308+00:00","session":"91a08821-3449-4310-8d34-7997ff2401fb","source":"cli","user":"johar","msg":"info:Environment detection:"}
+{"ts":"2026-01-07T15:39:06.771494+00:00","session":"91a08821-3449-4310-8d34-7997ff2401fb","source":"cli","user":"johar","msg":"cli:env"}
+{"ts":"2026-01-07T15:42:28.117068+00:00","session":"5d06c13d-5c50-45af-a46d-798bcbaeb608","source":"cli","user":"johar","msg":"info:Installing TensorFlow GPU with C:\\Users\\johar\\OneDrive\\Documents\\ISBC\\GitRepos\\plm\\PLM\\venv\\Scripts\\python.exe ..."}
+{"ts":"2026-01-07T15:42:59.510444+00:00","session":"11a36ae9-64c1-42f4-b7b8-5289143a12ab","source":"cli","user":"johar","msg":"info:Installing TensorFlow GPU with C:\\Users\\johar\\OneDrive\\Documents\\ISBC\\GitRepos\\plm\\PLM\\venv\\Scripts\\python.exe ..."}
+{"ts":"2026-01-07T15:44:11.628889+00:00","session":"56e2201e-9feb-49d8-adf6-7e114110a95a","source":"cli","user":"johar","msg":"info:Installing TensorFlow GPU with C:\\Users\\johar\\OneDrive\\Documents\\ISBC\\GitRepos\\plm\\PLM\\venv\\Scripts\\python.exe ..."}
+{"ts":"2026-01-07T15:44:16.738336+00:00","session":"5878c9cb-b0c4-41e7-a8b3-4af3cfe83a78","source":"cli","user":"johar","msg":"info:Log level set to debug"}
+{"ts":"2026-01-07T15:44:17.087730+00:00","session":"5878c9cb-b0c4-41e7-a8b3-4af3cfe83a78","source":"cli","user":"johar","msg":"info:Environment detection:"}
+{"ts":"2026-01-07T15:44:17.107961+00:00","session":"5878c9cb-b0c4-41e7-a8b3-4af3cfe83a78","source":"cli","user":"johar","msg":"cli:env"}
+{"ts":"2026-01-07T15:44:17.306905+00:00","session":"fe7b8d65-ed0f-4eca-ab1a-5b80a69f90b3","source":"cli","user":"johar","msg":"info:Log level set to debug"}
+{"ts":"2026-01-07T15:44:17.317158+00:00","session":"fe7b8d65-ed0f-4eca-ab1a-5b80a69f90b3","source":"cli","user":"johar","msg":"cli:probe-cuda"}
+{"ts":"2026-01-07T15:44:23.899658+00:00","session":"fe7b8d65-ed0f-4eca-ab1a-5b80a69f90b3","source":"cli","user":"johar","msg":"info:- tensorflow: {\"ver\": \"2.20.0\", \"gpus\": []}"}
+{"ts":"2026-01-07T15:44:28.553211+00:00","session":"fe7b8d65-ed0f-4eca-ab1a-5b80a69f90b3","source":"cli","user":"johar","msg":"info:- docker GPU probe OK (CUDA via container ready)"}
+{"ts":"2026-01-07T15:44:29.952667+00:00","session":"725bffe6-f19a-41fb-8a6b-2e26b94611bc","source":"cli","user":"johar","msg":"info:Environment detection:"}
+{"ts":"2026-01-07T15:44:29.963390+00:00","session":"725bffe6-f19a-41fb-8a6b-2e26b94611bc","source":"cli","user":"johar","msg":"cli:env"}
+{"ts":"2026-01-07T15:51:05.746558+00:00","session":"cfbeca54-a579-4c1d-b342-6d886cc00812","source":"cli","user":"johar","msg":"info:Installing TensorFlow GPU with C:\\Users\\johar\\OneDrive\\Documents\\ISBC\\GitRepos\\plm\\PLM\\venv\\Scripts\\python.exe ..."}
+{"ts":"2026-01-07T15:51:10.504362+00:00","session":"7180e915-8f46-45a9-9c1a-e79e43a2930c","source":"cli","user":"johar","msg":"info:Log level set to debug"}
+{"ts":"2026-01-07T15:51:10.791821+00:00","session":"7180e915-8f46-45a9-9c1a-e79e43a2930c","source":"cli","user":"johar","msg":"info:Environment detection:"}
+{"ts":"2026-01-07T15:51:10.811170+00:00","session":"7180e915-8f46-45a9-9c1a-e79e43a2930c","source":"cli","user":"johar","msg":"cli:env"}
+{"ts":"2026-01-07T15:51:10.985872+00:00","session":"5862ce6e-c0fa-41e5-b5a8-3ccc503ede2e","source":"cli","user":"johar","msg":"info:Log level set to debug"}
+{"ts":"2026-01-07T15:51:10.997959+00:00","session":"5862ce6e-c0fa-41e5-b5a8-3ccc503ede2e","source":"cli","user":"johar","msg":"cli:probe-cuda"}
+{"ts":"2026-01-07T15:51:17.009626+00:00","session":"5862ce6e-c0fa-41e5-b5a8-3ccc503ede2e","source":"cli","user":"johar","msg":"info:- tensorflow: {\"ver\": \"2.20.0\", \"gpus\": []}"}
+{"ts":"2026-01-07T15:51:20.946882+00:00","session":"5862ce6e-c0fa-41e5-b5a8-3ccc503ede2e","source":"cli","user":"johar","msg":"info:- docker GPU probe OK (CUDA via container ready)"}
+{"ts":"2026-01-07T15:51:22.547128+00:00","session":"73ceb4d2-642c-4fa0-a537-6cb673f01e11","source":"cli","user":"johar","msg":"info:Environment detection:"}
+{"ts":"2026-01-07T15:51:22.555522+00:00","session":"73ceb4d2-642c-4fa0-a537-6cb673f01e11","source":"cli","user":"johar","msg":"cli:env"}
+{"ts":"2026-01-07T15:51:45.074049+00:00","session":"7cae1787-992c-4033-9aa5-d54b69badbf2","source":"cli","user":"johar","msg":"info:Log level set to debug"}
+{"ts":"2026-01-07T15:51:45.358880+00:00","session":"7cae1787-992c-4033-9aa5-d54b69badbf2","source":"cli","user":"johar","msg":"info:Environment detection:"}
+{"ts":"2026-01-07T15:51:45.375849+00:00","session":"7cae1787-992c-4033-9aa5-d54b69badbf2","source":"cli","user":"johar","msg":"cli:env"}
+{"ts":"2026-01-07T15:51:45.616711+00:00","session":"554d2ef2-b5be-46db-9d7d-dad5e8115df3","source":"cli","user":"johar","msg":"info:Log level set to debug"}
+{"ts":"2026-01-07T15:51:45.642520+00:00","session":"554d2ef2-b5be-46db-9d7d-dad5e8115df3","source":"cli","user":"johar","msg":"cli:probe-cuda"}
+{"ts":"2026-01-07T15:51:51.241904+00:00","session":"554d2ef2-b5be-46db-9d7d-dad5e8115df3","source":"cli","user":"johar","msg":"info:- tensorflow: {\"ver\": \"2.20.0\", \"gpus\": []}"}
+{"ts":"2026-01-07T15:51:55.451381+00:00","session":"554d2ef2-b5be-46db-9d7d-dad5e8115df3","source":"cli","user":"johar","msg":"info:- docker GPU probe OK (CUDA via container ready)"}
+{"ts":"2026-01-07T15:51:56.852704+00:00","session":"7667bd0c-d8da-4841-a1c5-200279e6344f","source":"cli","user":"johar","msg":"info:Environment detection:"}
+{"ts":"2026-01-07T15:51:56.860721+00:00","session":"7667bd0c-d8da-4841-a1c5-200279e6344f","source":"cli","user":"johar","msg":"cli:env"}
+{"ts":"2026-01-07T15:57:48.415650+00:00","session":"0ad54aca-f8dc-44c0-8e33-47d6b6a309ea","source":"cli","user":"johar","msg":"info:Installing TensorFlow GPU with C:\\Users\\johar\\OneDrive\\Documents\\ISBC\\GitRepos\\plm\\PLM\\venv\\Scripts\\python.exe ..."}
+{"ts":"2026-01-07T15:57:52.963064+00:00","session":"764d262a-6471-40e3-bf11-bc287b5880e3","source":"cli","user":"johar","msg":"info:Log level set to debug"}
+{"ts":"2026-01-07T15:57:53.259717+00:00","session":"764d262a-6471-40e3-bf11-bc287b5880e3","source":"cli","user":"johar","msg":"info:Environment detection:"}
+{"ts":"2026-01-07T15:57:53.273533+00:00","session":"764d262a-6471-40e3-bf11-bc287b5880e3","source":"cli","user":"johar","msg":"cli:env"}
+{"ts":"2026-01-07T15:57:53.438833+00:00","session":"6fde2704-ba71-4ac0-9957-d8493877d1d9","source":"cli","user":"johar","msg":"info:Log level set to debug"}
+{"ts":"2026-01-07T15:57:53.448547+00:00","session":"6fde2704-ba71-4ac0-9957-d8493877d1d9","source":"cli","user":"johar","msg":"cli:probe-cuda"}
+{"ts":"2026-01-07T15:57:59.709573+00:00","session":"6fde2704-ba71-4ac0-9957-d8493877d1d9","source":"cli","user":"johar","msg":"info:- tensorflow: {\"ver\": \"2.20.0\", \"gpus\": []}"}
+{"ts":"2026-01-07T15:58:04.685134+00:00","session":"6fde2704-ba71-4ac0-9957-d8493877d1d9","source":"cli","user":"johar","msg":"info:- docker GPU probe OK (CUDA via container ready)"}
+{"ts":"2026-01-07T15:58:06.169577+00:00","session":"4f199b3c-d447-4cb8-b212-142861a814b6","source":"cli","user":"johar","msg":"info:Environment detection:"}
+{"ts":"2026-01-07T15:58:06.181053+00:00","session":"4f199b3c-d447-4cb8-b212-142861a814b6","source":"cli","user":"johar","msg":"cli:env"}
+{"ts":"2026-01-07T16:20:57.920255+00:00","session":"1802d939-3494-4d2a-af26-848b7c7133bc","source":"cli","user":"johar","msg":"info:Installing TensorFlow GPU with C:\\Users\\johar\\OneDrive\\Documents\\ISBC\\GitRepos\\plm\\PLM\\venv\\Scripts\\python.exe ..."}
+{"ts":"2026-01-07T16:23:25.533492+00:00","session":"6ca02887-91b2-4755-816b-7735ff419334","source":"cli","user":"johar","msg":"info:Installing TensorFlow GPU with C:\\Users\\johar\\OneDrive\\Documents\\ISBC\\GitRepos\\plm\\PLM\\venv\\Scripts\\python.exe ..."}
+{"ts":"2026-01-07T16:23:33.109386+00:00","session":"8949084c-420d-4fa8-b5b8-9da600ac5ebe","source":"cli","user":"johar","msg":"info:Log level set to debug"}
+{"ts":"2026-01-07T16:23:33.511717+00:00","session":"8949084c-420d-4fa8-b5b8-9da600ac5ebe","source":"cli","user":"johar","msg":"info:Environment detection:"}
+{"ts":"2026-01-07T16:23:33.522168+00:00","session":"8949084c-420d-4fa8-b5b8-9da600ac5ebe","source":"cli","user":"johar","msg":"cli:env"}
+{"ts":"2026-01-07T16:23:33.741073+00:00","session":"aa39229c-bd52-4b36-820b-7ead0bdd891a","source":"cli","user":"johar","msg":"info:Log level set to debug"}
+{"ts":"2026-01-07T16:23:33.753953+00:00","session":"aa39229c-bd52-4b36-820b-7ead0bdd891a","source":"cli","user":"johar","msg":"cli:probe-cuda"}
+{"ts":"2026-01-07T16:23:38.227535+00:00","session":"aa39229c-bd52-4b36-820b-7ead0bdd891a","source":"cli","user":"johar","msg":"info:- tensorflow: {\"ver\": \"2.20.0\", \"gpus\": []}"}
+{"ts":"2026-01-07T16:23:40.534264+00:00","session":"aa39229c-bd52-4b36-820b-7ead0bdd891a","source":"cli","user":"johar","msg":"info:- docker GPU probe OK (CUDA via container ready)"}
+{"ts":"2026-01-07T16:23:41.755830+00:00","session":"4a748e26-15e6-432e-a294-60cafec66125","source":"cli","user":"johar","msg":"info:Environment detection:"}
+{"ts":"2026-01-07T16:23:41.763250+00:00","session":"4a748e26-15e6-432e-a294-60cafec66125","source":"cli","user":"johar","msg":"cli:env"}
+{"ts":"2026-01-07T16:29:47.643347+00:00","session":"868022cf-16d6-497a-b679-776f8127ed2d","source":"cli","user":"johar","msg":"info:Installing TensorFlow GPU with C:\\Users\\johar\\OneDrive\\Documents\\ISBC\\GitRepos\\plm\\PLM\\venv\\Scripts\\python.exe ..."}
+{"ts":"2026-01-07T16:29:56.308603+00:00","session":"e5522c5f-7522-44f5-bb7a-932e7150134b","source":"cli","user":"johar","msg":"info:Log level set to debug"}
+{"ts":"2026-01-07T16:29:56.669784+00:00","session":"e5522c5f-7522-44f5-bb7a-932e7150134b","source":"cli","user":"johar","msg":"info:Environment detection:"}
+{"ts":"2026-01-07T16:29:56.690129+00:00","session":"e5522c5f-7522-44f5-bb7a-932e7150134b","source":"cli","user":"johar","msg":"cli:env"}
+{"ts":"2026-01-07T16:36:22.144936+00:00","session":"e49376d2-9264-4c21-9c13-524e4834533b","source":"cli","user":"johar","msg":"info:Log level set to debug"}
+{"ts":"2026-01-07T16:36:22.513278+00:00","session":"e49376d2-9264-4c21-9c13-524e4834533b","source":"cli","user":"johar","msg":"info:Environment detection:"}
+{"ts":"2026-01-07T16:36:22.527056+00:00","session":"e49376d2-9264-4c21-9c13-524e4834533b","source":"cli","user":"johar","msg":"cli:env"}
+{"ts":"2026-01-07T16:36:22.756912+00:00","session":"ace99527-a0c5-4302-98e1-a16e4a4a8dff","source":"cli","user":"johar","msg":"info:Log level set to debug"}
+{"ts":"2026-01-07T16:36:22.766463+00:00","session":"ace99527-a0c5-4302-98e1-a16e4a4a8dff","source":"cli","user":"johar","msg":"cli:probe-cuda"}
+{"ts":"2026-01-07T16:36:26.953380+00:00","session":"ace99527-a0c5-4302-98e1-a16e4a4a8dff","source":"cli","user":"johar","msg":"info:- tensorflow: {\"ver\": \"2.20.0\", \"gpus\": []}"}
+{"ts":"2026-01-07T16:36:28.638378+00:00","session":"ace99527-a0c5-4302-98e1-a16e4a4a8dff","source":"cli","user":"johar","msg":"info:- docker GPU probe OK (CUDA via container ready)"}
+{"ts":"2026-01-07T16:36:30.050273+00:00","session":"29ffec84-ad4b-4d02-bcbc-1f2ff1e64bc0","source":"cli","user":"johar","msg":"info:Environment detection:"}
+{"ts":"2026-01-07T16:36:30.060643+00:00","session":"29ffec84-ad4b-4d02-bcbc-1f2ff1e64bc0","source":"cli","user":"johar","msg":"cli:env"}
+{"ts":"2026-01-07T16:37:30.951420+00:00","session":"3bf3a905-4c7e-438b-9268-2c6120ebb734","source":"cli","user":"johar","msg":"info:Installing TensorFlow GPU with C:\\Users\\johar\\OneDrive\\Documents\\ISBC\\GitRepos\\plm\\PLM\\venv\\Scripts\\python.exe ..."}
+{"ts":"2026-01-07T16:37:32.762973+00:00","session":"3bf3a905-4c7e-438b-9268-2c6120ebb734","source":"cli","user":"johar","msg":"info:Installing CUDA Toolkit on Windows..."}
+{"ts":"2026-01-07T16:37:35.725026+00:00","session":"3bf3a905-4c7e-438b-9268-2c6120ebb734","source":"cli","user":"johar","msg":"info:CUDA install failed (exit 2316632107); proceeding without."}
+{"ts":"2026-01-07T16:37:40.306101+00:00","session":"3bf3a905-4c7e-438b-9268-2c6120ebb734","source":"cli","user":"johar","msg":"info:Install attempt for tensorflow[and-cuda] failed (exit 1); trying next fallback."}
+{"ts":"2026-01-07T16:40:59.461419+00:00","session":"bb2e8c25-7d13-4850-9a77-4c10ff4528c9","source":"cli","user":"unknown","msg":"info:Environment detection:"}
+{"ts":"2026-01-07T16:40:59.496718+00:00","session":"bb2e8c25-7d13-4850-9a77-4c10ff4528c9","source":"cli","user":"unknown","msg":"cli:env"}
+{"ts":"2026-01-07T16:42:27.784709+00:00","session":"3391d8f1-313a-43d5-a174-08bba692754a","source":"cli","user":"johar","msg":"info:Installing TensorFlow GPU with C:\\Users\\johar\\OneDrive\\Documents\\ISBC\\GitRepos\\plm\\PLM\\venv\\Scripts\\python.exe ..."}
+{"ts":"2026-01-07T16:42:29.717280+00:00","session":"3391d8f1-313a-43d5-a174-08bba692754a","source":"cli","user":"johar","msg":"info:Installing CUDA Toolkit on Windows..."}
+{"ts":"2026-01-07T16:42:31.207205+00:00","session":"3391d8f1-313a-43d5-a174-08bba692754a","source":"cli","user":"johar","msg":"info:CUDA install failed (exit 2316632107); proceeding without."}
+{"ts":"2026-01-07T16:42:38.364500+00:00","session":"701d01d2-e60e-493b-84f5-c8752722544c","source":"cli","user":"johar","msg":"info:Installing TensorFlow GPU with C:\\Users\\johar\\OneDrive\\Documents\\ISBC\\GitRepos\\plm\\PLM\\venv\\Scripts\\python.exe ..."}
+{"ts":"2026-01-07T16:42:40.382205+00:00","session":"701d01d2-e60e-493b-84f5-c8752722544c","source":"cli","user":"johar","msg":"info:Installing CUDA Toolkit on Windows..."}
+{"ts":"2026-01-07T16:42:41.536249+00:00","session":"701d01d2-e60e-493b-84f5-c8752722544c","source":"cli","user":"johar","msg":"info:CUDA install failed (exit 2316632107); proceeding without."}
+{"ts":"2026-01-07T16:42:53.950408+00:00","session":"9bc9a4d4-aa6d-4b03-bba3-4e25531b27ae","source":"cli","user":"johar","msg":"info:Installing TensorFlow GPU with C:\\Users\\johar\\OneDrive\\Documents\\ISBC\\GitRepos\\plm\\PLM\\venv\\Scripts\\python.exe ..."}
+{"ts":"2026-01-07T16:42:55.831565+00:00","session":"9bc9a4d4-aa6d-4b03-bba3-4e25531b27ae","source":"cli","user":"johar","msg":"info:Installing CUDA Toolkit on Windows..."}
+{"ts":"2026-01-07T16:42:56.962520+00:00","session":"9bc9a4d4-aa6d-4b03-bba3-4e25531b27ae","source":"cli","user":"johar","msg":"info:CUDA install failed (exit 2316632107); proceeding without."}
+{"ts":"2026-01-07T16:44:05.923197+00:00","session":"a5fa77cc-2484-4ed6-8ab2-cb668a5f6d1c","source":"cli","user":"johar","msg":"info:Log level set to debug"}
+{"ts":"2026-01-07T16:44:06.190259+00:00","session":"a5fa77cc-2484-4ed6-8ab2-cb668a5f6d1c","source":"cli","user":"johar","msg":"info:Environment detection:"}
+{"ts":"2026-01-07T16:44:06.203472+00:00","session":"a5fa77cc-2484-4ed6-8ab2-cb668a5f6d1c","source":"cli","user":"johar","msg":"cli:env"}
+{"ts":"2026-01-07T16:44:06.387701+00:00","session":"710d7b8b-4576-4c11-9010-7be051ad514b","source":"cli","user":"johar","msg":"info:Log level set to debug"}
+{"ts":"2026-01-07T16:44:06.400416+00:00","session":"710d7b8b-4576-4c11-9010-7be051ad514b","source":"cli","user":"johar","msg":"cli:probe-cuda"}
+{"ts":"2026-01-07T16:51:48.761695+00:00","session":"ef4cac9c-5c03-427d-80b3-be928e834c8a","source":"cli","user":"johar","msg":"info:Installing TensorFlow GPU with C:\\Users\\johar\\OneDrive\\Documents\\ISBC\\GitRepos\\plm\\PLM\\venv\\Scripts\\python.exe ..."}
+{"ts":"2026-01-07T16:51:50.641546+00:00","session":"ef4cac9c-5c03-427d-80b3-be928e834c8a","source":"cli","user":"johar","msg":"info:Installing CUDA Toolkit on Windows..."}
+{"ts":"2026-01-07T16:51:52.079771+00:00","session":"ef4cac9c-5c03-427d-80b3-be928e834c8a","source":"cli","user":"johar","msg":"info:CUDA install failed (exit 2316632107); proceeding without."}
+{"ts":"2026-01-07T16:51:59.319696+00:00","session":"c941bcf2-26f4-4a85-9f89-5ef2efd61f62","source":"cli","user":"johar","msg":"info:Installing TensorFlow GPU with C:\\Users\\johar\\OneDrive\\Documents\\ISBC\\GitRepos\\plm\\PLM\\venv\\Scripts\\python.exe ..."}
+{"ts":"2026-01-07T16:52:01.330272+00:00","session":"c941bcf2-26f4-4a85-9f89-5ef2efd61f62","source":"cli","user":"johar","msg":"info:Installing CUDA Toolkit on Windows..."}
+{"ts":"2026-01-07T16:52:03.020479+00:00","session":"c941bcf2-26f4-4a85-9f89-5ef2efd61f62","source":"cli","user":"johar","msg":"info:CUDA install failed (exit 2316632107); proceeding without."}
+{"ts":"2026-01-07T16:52:12.025942+00:00","session":"fabe5b27-fc97-43fa-b908-2633b521d9dc","source":"cli","user":"johar","msg":"info:Installing TensorFlow GPU with C:\\Users\\johar\\OneDrive\\Documents\\ISBC\\GitRepos\\plm\\PLM\\venv\\Scripts\\python.exe ..."}
+{"ts":"2026-01-07T16:52:14.179517+00:00","session":"fabe5b27-fc97-43fa-b908-2633b521d9dc","source":"cli","user":"johar","msg":"info:Installing CUDA Toolkit on Windows..."}
+{"ts":"2026-01-07T16:52:15.865804+00:00","session":"fabe5b27-fc97-43fa-b908-2633b521d9dc","source":"cli","user":"johar","msg":"info:CUDA install failed (exit 2316632107); proceeding without."}
+{"ts":"2026-01-07T16:52:19.554610+00:00","session":"71185c8c-5e32-466d-bcef-ce4bffae36f6","source":"cli","user":"unknown","msg":"info:Environment detection:"}
+{"ts":"2026-01-07T16:52:19.588709+00:00","session":"71185c8c-5e32-466d-bcef-ce4bffae36f6","source":"cli","user":"unknown","msg":"cli:env"}
+{"ts":"2026-01-07T16:52:27.906101+00:00","session":"cb465d1c-27c5-4bb2-b6c2-e84457fe81d2","source":"cli","user":"unknown","msg":"info:Environment detection:"}
+{"ts":"2026-01-07T16:52:27.936770+00:00","session":"cb465d1c-27c5-4bb2-b6c2-e84457fe81d2","source":"cli","user":"unknown","msg":"cli:env"}

@@ -2,8 +2,6 @@
 venv/
 __pycache__/
 *.pyc
-*.log
-bak/
 .vscode/
 *.egg-info/
 .pytest_cache/

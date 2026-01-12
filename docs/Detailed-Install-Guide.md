@@ -14,7 +14,13 @@
 
 ## Step-by-Step Installation
 
-### 1. Clone Repository
+### 0. Fast path (recommended)
+```powershell
+powershell -ExecutionPolicy Bypass -File .\start_plm.ps1
+```
+Pick GUI or CLI; both can detect/install/update components, run smoke/full tests, probe CUDA, and launch debug consoles.
+
+### 1. Clone Repository (manual path)
 ```bash
 git clone https://github.com/NetworkArchetype/PLM.git
 cd PLM
@@ -23,7 +29,7 @@ cd PLM
 ### 2. Create Virtual Environment
 ```bash
 python -m venv venv
-.\venv\Scripts\activate
+\.\venv\Scripts\activate
 ```
 
 ### 3. Install Core Dependencies
@@ -43,7 +49,7 @@ pip install qsimcirq
 
 ### 6. Configure CUDA (Optional)
 ```powershell
-.\Configure-CUDA.ps1 -Enable
+\.\Configure-CUDA.ps1 -Enable
 ```
 This will:
 - Install NVIDIA CUDA Toolkit 13.1 via winget
@@ -56,19 +62,39 @@ python -c "import cirq; print('Cirq installed')"
 python -c "import qsimcirq; print('QSim installed')"  # If GPU enabled
 ```
 
-## GUI Setup
+Recommended CI-like smoke test (runs circuits and PLM temporal sim):
 
-### Running the Admin GUI
-```powershell
-.\PLM-Environment-AdminGUI.fixed.ps1
+```bash
+python test_installation.py
 ```
 
-### GUI Features
-- **CUDA Status Display**: Shows current configuration
-- **Enable CUDA Button**: Enables CUDA support
-- **Disable CUDA Button**: Disables CUDA support
-- **Test CUDA Button**: Runs test simulation
+### 8. Credentials and prompts
 
+- Upload scripts prompt for tokens if not supplied (`scripts/upload_random_artifact.ps1` / `.sh`).
+- Ventoy payload scripts prompt for Ubuntu password hashes at runtime (`Code_core_3/Engine_proof/*.ps1`).
+- Admin GUI logs redact passwords/tokens; do not hardcode secrets.
+
+## GUI and CLI operator consoles
+
+### Launch
+- Start menu: `powershell -ExecutionPolicy Bypass -File .\start_plm.ps1`
+- Direct GUI: `powershell -ExecutionPolicy Bypass -File .\Deploy\PLM-Environment-AdminGUI.fixed.ps1`
+- Direct CLI: `.\venv\Scripts\python.exe .\scripts\plm_cli.py --menu` (add `--curses` if you installed windows-curses)
+
+### Feature parity (GUI and CLI)
+- Detect environment (winget/git/python/VS Code/WSL/Docker/nvidia-smi/nvcc)
+- Install/Repair and Update core components (winget: Git, Python 3.12, VS Code, Windows Terminal, Docker Desktop, Nvidia CUDA)
+- Run smoke test (test_installation.py) or full pytest
+- Probe CUDA/GPU (nvidia-smi, nvcc)
+- Toggle CUDA via Configure-CUDA.ps1 (enable/disable)
+- Launch Admin GUI (from CLI) or open debug consoles (with/without venv activation)
+- Export debug report (temp log summarizing environment)
+
+### GUI layout
+- **Environment Detection**: status lights for winget/git/python/VS Code/WT/WSL/Docker/Hyper-V/nvidia-smi/CUDA
+- **Actions & Modes**: install/repair, update, run deploy script, open terminals
+- **Diagnostics & Debug**: user-mode selector (Guided vs Advanced), buttons for smoke/full pytest, CUDA probe, env report, debug consoles, export report, Resource Monitor
+- **Log pane**: live output with secret redaction
 ## Script Details
 
 ### Configure-CUDA.ps1 Switches
@@ -127,6 +153,13 @@ plm_formalized/
 - Location: PLM root directory
 - Auto-created by Configure-CUDA.ps1
 - Read by quantum_temporal.py for simulator selection
+
+## Credentials & Security Notes
+
+- No credentials are stored in this repo.
+- If you use scripts that upload artifacts or generate autoinstall templates, they will prompt for any required tokens/password-hashes at runtime.
+- Autoinstall/user-data templates necessarily contain a password hash. Treat generated output as sensitive and keep it in `bak/` (ignored by git). Do not commit it.
+- Avoid saving or uploading environment dumps that may contain secrets.
 
 ## Testing Installation
 

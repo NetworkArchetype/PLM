@@ -53,8 +53,25 @@ function Add-StatusRow {
 # Logging (defined after UI textbox exists, but keep helper)
 # -----------------------------
 $script:txtLog = $null
+
+function Sanitize-LogMessage([string]$msg) {
+  if (-not $msg) { return $msg }
+
+  $out = $msg
+  # Common token/key patterns
+  $out = $out -replace '\bghp_[A-Za-z0-9]{36}\b', 'ghp_REDACTED'
+  $out = $out -replace '\bgithub_pat_[A-Za-z0-9_]{20,}\b', 'github_pat_REDACTED'
+  $out = $out -replace '(?i)\bBearer\s+[A-Za-z0-9\-_.=]{12,}\b', 'Bearer REDACTED'
+  $out = $out -replace '(?i)\b(Authorization\s*:\s*Bearer)\s+\S+', '$1 REDACTED'
+  # Common assignment forms (best-effort; avoids logging real values)
+  $out = $out -replace '(?i)\b(password|passwd|pwd)\b\s*[:=]\s*[^\s;]+', '$1=REDACTED'
+  $out = $out -replace '(?i)\b(token|secret|api[_-]?key|client_secret)\b\s*[:=]\s*[^\s;]+', '$1=REDACTED'
+  return $out
+}
+
 function Log([string]$msg) {
   $ts = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
+  $msg = Sanitize-LogMessage $msg
   if ($script:txtLog) {
     $script:txtLog.AppendText("[$ts] $msg`r`n")
     $script:txtLog.SelectionStart = $script:txtLog.TextLength
@@ -297,14 +314,14 @@ function Do-OpenHyperVManager {
   }
 }
 function Do-CreateHyperVSandboxNote {
-  $msg = @"
-Hyper-V Sandbox Mode (GUI):
-- Click 'Open Hyper-V' to create/manage a VM.
-- Install Windows/Ubuntu in the VM from an ISO.
-- Run Deploy-PLM-Environment.ps1 inside the VM for an isolated sandbox.
-
-Tip: Docker + WSL are the fastest sandboxes; Hyper-V is full OS isolation.
-"@
+  $msg = @(
+    "Hyper-V Sandbox Mode (GUI):",
+    "- Click 'Open Hyper-V' to create/manage a VM.",
+    "- Install Windows/Ubuntu in the VM from an ISO.",
+    "- Run Deploy-PLM-Environment.ps1 inside the VM for an isolated sandbox.",
+    "",
+    "Tip: Docker + WSL are the fastest sandboxes; Hyper-V is full OS isolation."
+  ) -join "`r`n"
   [System.Windows.Forms.MessageBox]::Show($msg, "Hyper-V Sandbox Help",
     [System.Windows.Forms.MessageBoxButtons]::OK,
     [System.Windows.Forms.MessageBoxIcon]::Information) | Out-Null

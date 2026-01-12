@@ -26,6 +26,24 @@ Ensure-Admin
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
+$repoRoot = Split-Path -Parent (Split-Path -Parent $PSCommandPath)
+$authHelper = Join-Path $repoRoot "scripts/auth_session.ps1"
+if (Test-Path $authHelper) { . $authHelper }
+
+function Ensure-AuthToken {
+  try {
+    $token = Get-PlmAuthToken -Mode "GUI" -PromptTitle "PLM Admin GUI authentication"
+    $env:PLM_AUTH_TOKEN = $token
+    $env:PLM_AUTH_HASH = Get-PlmAuthTokenHash
+  } catch {
+    [System.Windows.Forms.MessageBox]::Show("Authentication required: $($_.Exception.Message)","Authentication Error",
+      [System.Windows.Forms.MessageBoxButtons]::OK,
+      [System.Windows.Forms.MessageBoxIcon]::Error) | Out-Null
+    exit 1
+  }
+}
+Ensure-AuthToken
+
 function Add-StatusRow {
   param(
     $parent,
@@ -53,8 +71,38 @@ function Add-StatusRow {
 # Logging (defined after UI textbox exists, but keep helper)
 # -----------------------------
 $script:txtLog = $null
-function Log([string]$msg) {
+$script:LogLevel = "Normal"  # Normal|Debug
+
+function Should-Log([string]$Level) {
+  if ($script:LogLevel -ieq "Debug") { return $true }
+  return ($Level -in @($null, "", "Info", "Normal"))
+}
+
+function Set-LogLevel([string]$Level) {
+  if ([string]::IsNullOrWhiteSpace($Level)) { return }
+  $target = $(if ($Level -ieq "Debug") { "Debug" } else { "Normal" })
+  $script:LogLevel = $target
+  Log "Log level set to $target" "Info"
+}
+
+function Sanitize-LogMessage([string]$msg) {
+  if (-not $msg) { return $msg }
+
+  $out = $msg
+  # Common token/key patterns
+  $out = $out -replace '\bghp_[A-Za-z0-9]{36}\b', 'ghp_REDACTED'
+  $out = $out -replace '\bgithub_pat_[A-Za-z0-9_]{20,}\b', 'github_pat_REDACTED'
+  $out = $out -replace '(?i)\bBearer\s+[A-Za-z0-9\-_.=]{12,}\b', 'Bearer REDACTED'
+  $out = $out -replace '(?i)\b(Authorization\s*:\s*Bearer)\s+\S+', '$1 REDACTED'
+  # Common assignment forms (best-effort; avoids logging real values)
+  $out = $out -replace '(?i)\b(password|passwd|pwd)\b\s*[:=]\s*[^\s;]+', '$1=REDACTED'
+  $out = $out -replace '(?i)\b(token|secret|api[_-]?key|client_secret)\b\s*[:=]\s*[^\s;]+', '$1=REDACTED'
+  return $out
+}
+function Log([string]$msg, [string]$Level = "Info") {
+  if (-not (Should-Log $Level)) { return }
   $ts = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
+  $msg = Sanitize-LogMessage $msg
   if ($script:txtLog) {
     $script:txtLog.AppendText("[$ts] $msg`r`n")
     $script:txtLog.SelectionStart = $script:txtLog.TextLength
@@ -141,7 +189,18 @@ function Detect-UbuntuInstalled {
 function Detect-DockerDesktop {
   if (-not (Exists-Cmd "docker")) { return $false }
   try {
-    docker version --format "{{.Server.Version}}" 2>$null | Out-Null
+    $ver = docker version --format "{{.Server.Version}}" 2>$null
+    if ($LASTEXITCODE -eq 0 -and $ver) { return $true }
+    $info = docker info --format "{{.ID}}" 2>$null
+    return ($LASTEXITCODE -eq 0 -and $info)
+  } catch { return $false }
+}
+function Detect-WSLReady {
+  if (-not (Exists-Cmd "wsl")) { return $false }
+  try {
+    $list = wsl.exe -l -q 2>$null
+    if (-not $list) { return $false }
+    wsl.exe --status 2>$null | Out-Null
     return ($LASTEXITCODE -eq 0)
   } catch { return $false }
 }
@@ -158,6 +217,7 @@ function Detect-Environment {
     WSLFeature     = Detect-WSLFeatureEnabled
     VMPFeature     = Detect-VMPFeatureEnabled
     WSL            = Exists-Cmd "wsl"
+    WSLReady       = Detect-WSLReady
     Ubuntu         = Detect-UbuntuInstalled
     Docker         = Detect-DockerDesktop
     HyperV         = Detect-HyperVEnabled
@@ -200,8 +260,10 @@ function Render-Status($s) {
   $script:lblWTValue.ForeColor = Status-Color $s.WindowsTerminal
   $script:lblWTValue.Text      = $(if ($s.WindowsTerminal){"OK"} else {"Missing"})
 
-  $script:lblWSLFeatValue.ForeColor = Status-Color ($s.WSLFeature -and $s.VMPFeature)
-  $script:lblWSLFeatValue.Text      = $(if ($s.WSLFeature -and $s.VMPFeature){"Enabled"} else {"Disabled"})
+  $wslEnabled = ($s.WSLFeature -and $s.VMPFeature)
+  $wslReady = ($wslEnabled -and $s.WSLReady)
+  $script:lblWSLFeatValue.ForeColor = Status-Color $wslReady
+  $script:lblWSLFeatValue.Text      = $(if ($wslReady){"Enabled"} elseif ($wslEnabled){"Installed/Needs reboot"} else {"Disabled"})
 
   $script:lblUbuntuValue.ForeColor = Status-Color $s.Ubuntu
   $script:lblUbuntuValue.Text      = $(if ($s.Ubuntu){"Installed"} else {"Missing"})
@@ -297,14 +359,14 @@ function Do-OpenHyperVManager {
   }
 }
 function Do-CreateHyperVSandboxNote {
-  $msg = @"
-Hyper-V Sandbox Mode (GUI):
-- Click 'Open Hyper-V' to create/manage a VM.
-- Install Windows/Ubuntu in the VM from an ISO.
-- Run Deploy-PLM-Environment.ps1 inside the VM for an isolated sandbox.
-
-Tip: Docker + WSL are the fastest sandboxes; Hyper-V is full OS isolation.
-"@
+  $msg = @(
+    "Hyper-V Sandbox Mode (GUI):",
+    "- Click 'Open Hyper-V' to create/manage a VM.",
+    "- Install Windows/Ubuntu in the VM from an ISO.",
+    "- Run Deploy-PLM-Environment.ps1 inside the VM for an isolated sandbox.",
+    "",
+    "Tip: Docker + WSL are the fastest sandboxes; Hyper-V is full OS isolation."
+  ) -join "`r`n"
   [System.Windows.Forms.MessageBox]::Show($msg, "Hyper-V Sandbox Help",
     [System.Windows.Forms.MessageBoxButtons]::OK,
     [System.Windows.Forms.MessageBoxIcon]::Information) | Out-Null
@@ -312,6 +374,12 @@ Tip: Docker + WSL are the fastest sandboxes; Hyper-V is full OS isolation.
 
 function Do-TestCUDA {
   Log "Testing CUDA..."
+  $gpu = $null
+  $nvccVersion = $null
+  $smi = $null
+  $cudaPath = $env:CUDA_PATH
+  if ($cudaPath) { Log "CUDA_PATH: $cudaPath" }
+
   if (-not (Exists-Cmd "nvidia-smi")) {
     Log "nvidia-smi not found. Install NVIDIA drivers first."
     return
@@ -322,29 +390,142 @@ function Do-TestCUDA {
       Log "Detected GPU: $($gpu.Name)"
     } else {
       Log "No NVIDIA GPU detected."
-      return
     }
   } catch {
     Log "Error detecting GPU: $($_.Exception.Message)"
-    return
   }
-  if (-not (Exists-Cmd "nvcc")) {
+
+  $nvccPath = Get-Command nvcc -ErrorAction SilentlyContinue
+  if ($nvccPath) {
+    Log "nvcc path: $($nvccPath.Path)"
+    try {
+      $nvccVersion = & nvcc --version 2>$null | Select-String "release" | ForEach-Object { $_.Line }
+      Log "CUDA version: $nvccVersion"
+    } catch {
+      Log "Error getting CUDA version: $($_.Exception.Message)"
+    }
+  } else {
     Log "nvcc not found. Install CUDA Toolkit."
-    return
   }
+
   try {
-    $nvccVersion = & nvcc --version 2>$null | Select-String "release" | ForEach-Object { $_.Line }
-    Log "CUDA version: $nvccVersion"
-  } catch {
-    Log "Error getting CUDA version: $($_.Exception.Message)"
-  }
-  try {
-    $smi = & nvidia-smi --query-gpu=name,memory.total,memory.free --format=csv,noheader,nounits 2>$null
+    $smi = & nvidia-smi --query-gpu=name,driver_version,memory.total,memory.free --format=csv,noheader,nounits 2>$null
     Log "GPU Info: $smi"
   } catch {
     Log "Error running nvidia-smi: $($_.Exception.Message)"
   }
+
+  try {
+    $python = Get-PythonExe
+    if ($python) {
+      $tfOut = & $python -c "import json, sys, tensorflow as tf; print(json.dumps({'ver':tf.__version__, 'gpus':[d.name for d in tf.config.list_physical_devices('GPU')]}))" 2>&1
+      Log "TensorFlow: $tfOut"
+    } else {
+      Log "Python not found for TensorFlow check."
+    }
+  } catch {
+    Log "TensorFlow check failed: $($_.Exception.Message)"
+  }
+
+  if (Exists-Cmd "docker") {
+    try {
+      $dockerOut = & docker run --rm --gpus all nvidia/cuda:12.4.0-base-ubuntu22.04 nvidia-smi 2>&1
+      if ($LASTEXITCODE -eq 0) {
+        Log "Docker GPU probe: $dockerOut"
+      } else {
+        Log "Docker GPU probe failed (exit $LASTEXITCODE): $dockerOut"
+      }
+    } catch {
+      Log "Docker GPU probe error: $($_.Exception.Message)"
+    }
+  } else {
+    Log "Docker not detected; skipping docker GPU probe."
+  }
+
   Log "CUDA test completed."
+}
+
+function Ensure-DockerRunning {
+  param([switch]$AutoInstall)
+  Log "Ensuring Docker Desktop is running..."
+  if (Exists-Cmd "docker") {
+    try {
+      $info = docker info --format "{{.ID}}" 2>$null
+      if ($LASTEXITCODE -eq 0 -and $info) { Log "Docker already running."; return }
+    } catch {}
+  } elseif ($AutoInstall) {
+    try { Log "Installing Docker Desktop via winget..."; Winget-Install "Docker.DockerDesktop"; Log "Docker Desktop install attempted." } catch { Log "Docker Desktop install failed: $($_.Exception.Message)" }
+  } else {
+    Log "Docker CLI not found. Install Docker Desktop first."; return
+  }
+
+  try { Start-Service com.docker.service -ErrorAction SilentlyContinue } catch {}
+
+  $desktop = "$env:ProgramFiles\Docker\Docker\Docker Desktop.exe"
+  $backend = "$env:ProgramFiles\Docker\Docker\resources\com.docker.backend.exe"
+  if (Test-Path $desktop) { Start-Process $desktop | Out-Null }
+  if (Test-Path $backend) { Start-Process $backend -ArgumentList "--unattended" -WindowStyle Hidden | Out-Null }
+
+  for ($i=0; $i -lt 40; $i++) {
+    try {
+      $info = docker info --format "{{.ID}}" 2>$null
+      if ($LASTEXITCODE -eq 0 -and $info) { Log "Docker started."; return }
+    } catch {}
+    Start-Sleep -Seconds 2
+  }
+  Log "Docker did not respond. Open Docker Desktop manually and retry."
+}
+
+function Install-CUDAToolkit {
+  if (Exists-Cmd "nvcc") { Log "CUDA toolkit already present (nvcc found)."; return }
+  try { Log "Installing NVIDIA CUDA Toolkit via winget..."; Winget-Install "Nvidia.CUDA"; Log "CUDA Toolkit install attempted. Reboot/logoff may be required." } catch { Log "CUDA Toolkit install failed: $($_.Exception.Message)" }
+}
+
+function Install-TensorFlowGPU {
+  $python = Get-PythonExe
+  if (-not $python) { Log "Python not found; install Python first."; return }
+  Log "Installing TensorFlow GPU (pip upgrade + tensorflow[and-cuda]) using $python"
+  try {
+    & $python -m pip install --upgrade pip 2>&1 | ForEach-Object { Log $_ }
+    & $python -m pip install tensorflow[and-cuda] 2>&1 | ForEach-Object { Log $_ }
+    Log "TensorFlow GPU install attempt finished."
+  } catch { Log "TensorFlow install failed: $($_.Exception.Message)" }
+}
+
+function Do-GPUFix {
+  Log "Running GPU fix (Docker start + CUDA toolkit + TensorFlow)..."
+  Ensure-DockerRunning -AutoInstall
+  Install-CUDAToolkit
+  Install-TensorFlowGPU
+  Do-TestCUDA
+}
+
+function Do-EnableCUDA {
+  $cfg = Join-Path $RepoRoot "Configure-CUDA.ps1"
+  if (-not (Test-Path $cfg)) { Log "Configure-CUDA.ps1 not found."; return }
+  Log "Enabling CUDA via Configure-CUDA.ps1..."
+  try { & powershell -ExecutionPolicy Bypass -File $cfg -Enable 2>&1 | ForEach-Object { Log $_ } } catch { Log "Enable CUDA failed: $($_.Exception.Message)" }
+}
+
+function Do-DisableCUDA {
+  $cfg = Join-Path $RepoRoot "Configure-CUDA.ps1"
+  if (-not (Test-Path $cfg)) { Log "Configure-CUDA.ps1 not found."; return }
+  Log "Disabling CUDA via Configure-CUDA.ps1..."
+  try { & powershell -ExecutionPolicy Bypass -File $cfg -Disable 2>&1 | ForEach-Object { Log $_ } } catch { Log "Disable CUDA failed: $($_.Exception.Message)" }
+}
+
+function Open-CUDAShell {
+  $cmd = "& { Set-Location -LiteralPath '$RepoRoot'; Write-Host 'CUDA shell ready at $RepoRoot'; }"
+  Start-Process powershell.exe -ArgumentList "-NoExit","-ExecutionPolicy","Bypass","-Command",$cmd | Out-Null
+  Log "Opened CUDA shell (host)."
+}
+
+function Open-DockerCUDAShell {
+  if (-not (Exists-Cmd "docker")) { Log "Docker not found."; return }
+  $img = "nvidia/cuda:12.4.0-base-ubuntu22.04"
+  $cmd = "docker run --rm -it --gpus all $img bash"
+  Start-Process powershell.exe -ArgumentList "-NoExit","-ExecutionPolicy","Bypass","-Command",$cmd | Out-Null
+  Log "Opened Docker CUDA shell: $img"
 }
 
 # -----------------------------
@@ -413,7 +594,7 @@ $grpActions = New-Object System.Windows.Forms.GroupBox
 $grpActions.Text = "Actions and Modes"
 $grpActions.Font = $font
 $grpActions.Location = New-Object System.Drawing.Point(548, 10)
-$grpActions.Size = New-Object System.Drawing.Size(520, 240)
+$grpActions.Size = New-Object System.Drawing.Size(520, 270)
 $pTop.Controls.Add($grpActions)
 
 # Deploy script selector
@@ -487,6 +668,13 @@ $cmbMode.DropDownStyle = "DropDownList"
 $cmbMode.SelectedIndex = 0
 $grpActions.Controls.Add($cmbMode)
 
+$chkDebugLog = New-Object System.Windows.Forms.CheckBox
+$chkDebugLog.Text = "Debug logging"
+$chkDebugLog.Location = New-Object System.Drawing.Point(306, 148)
+$chkDebugLog.Size = New-Object System.Drawing.Size(170, 24)
+$chkDebugLog.Font = $font
+$grpActions.Controls.Add($chkDebugLog)
+
 # Hyper-V status display
 $lblHyperV = New-Object System.Windows.Forms.Label
 $lblHyperV.Text = "Hyper-V:"
@@ -547,11 +735,74 @@ $grpActions.Controls.Add($btnHyperVNote)
 
 # CUDA button
 $btnCUDATest = New-Object System.Windows.Forms.Button
-$btnCUDATest.Text = "Test CUDA"
+$btnCUDATest.Text = "CUDA Info"
 $btnCUDATest.Location = New-Object System.Drawing.Point(16, 196)
-$btnCUDATest.Size = New-Object System.Drawing.Size(100, 30)
+$btnCUDATest.Size = New-Object System.Drawing.Size(90, 30)
 $btnCUDATest.Font = $font
 $grpActions.Controls.Add($btnCUDATest)
+
+$btnCUDAEnable = New-Object System.Windows.Forms.Button
+$btnCUDAEnable.Text = "Enable CUDA"
+$btnCUDAEnable.Location = New-Object System.Drawing.Point(112, 196)
+$btnCUDAEnable.Size = New-Object System.Drawing.Size(110, 30)
+$btnCUDAEnable.Font = $font
+$grpActions.Controls.Add($btnCUDAEnable)
+
+$btnCUDADisable = New-Object System.Windows.Forms.Button
+$btnCUDADisable.Text = "Disable CUDA"
+$btnCUDADisable.Location = New-Object System.Drawing.Point(228, 196)
+$btnCUDADisable.Size = New-Object System.Drawing.Size(110, 30)
+$btnCUDADisable.Font = $font
+$grpActions.Controls.Add($btnCUDADisable)
+
+$btnCUDAShell = New-Object System.Windows.Forms.Button
+$btnCUDAShell.Text = "CUDA Shell"
+$btnCUDAShell.Location = New-Object System.Drawing.Point(344, 196)
+$btnCUDAShell.Size = New-Object System.Drawing.Size(80, 30)
+$btnCUDAShell.Font = $font
+$grpActions.Controls.Add($btnCUDAShell)
+
+$btnDockerCUDAShell = New-Object System.Windows.Forms.Button
+$btnDockerCUDAShell.Text = "Docker CUDA"
+$btnDockerCUDAShell.Location = New-Object System.Drawing.Point(430, 196)
+$btnDockerCUDAShell.Size = New-Object System.Drawing.Size(90, 30)
+$btnDockerCUDAShell.Font = $font
+$grpActions.Controls.Add($btnDockerCUDAShell)
+
+$btnDockerStart = New-Object System.Windows.Forms.Button
+$btnDockerStart.Text = "Start Docker"
+$btnDockerStart.Location = New-Object System.Drawing.Point(16, 232)
+$btnDockerStart.Size = New-Object System.Drawing.Size(110, 30)
+$btnDockerStart.Font = $font
+$grpActions.Controls.Add($btnDockerStart)
+
+$btnDockerInstall = New-Object System.Windows.Forms.Button
+$btnDockerInstall.Text = "Install Docker"
+$btnDockerInstall.Location = New-Object System.Drawing.Point(132, 232)
+$btnDockerInstall.Size = New-Object System.Drawing.Size(110, 30)
+$btnDockerInstall.Font = $font
+$grpActions.Controls.Add($btnDockerInstall)
+
+$btnCUDAInstall = New-Object System.Windows.Forms.Button
+$btnCUDAInstall.Text = "Install CUDA"
+$btnCUDAInstall.Location = New-Object System.Drawing.Point(248, 232)
+$btnCUDAInstall.Size = New-Object System.Drawing.Size(100, 30)
+$btnCUDAInstall.Font = $font
+$grpActions.Controls.Add($btnCUDAInstall)
+
+$btnTensorInstall = New-Object System.Windows.Forms.Button
+$btnTensorInstall.Text = "Install TF GPU"
+$btnTensorInstall.Location = New-Object System.Drawing.Point(354, 232)
+$btnTensorInstall.Size = New-Object System.Drawing.Size(110, 30)
+$btnTensorInstall.Font = $font
+$grpActions.Controls.Add($btnTensorInstall)
+
+$btnGPUFix = New-Object System.Windows.Forms.Button
+$btnGPUFix.Text = "GPU Fix"
+$btnGPUFix.Location = New-Object System.Drawing.Point(470, 232)
+$btnGPUFix.Size = New-Object System.Drawing.Size(60, 30)
+$btnGPUFix.Font = $font
+$grpActions.Controls.Add($btnGPUFix)
 
 # Log box
 $script:txtLog = New-Object System.Windows.Forms.TextBox
@@ -604,13 +855,28 @@ $btnHyperV.Add_Click({ Do-OpenHyperVManager })
 $btnHyperVNote.Add_Click({ Do-CreateHyperVSandboxNote })
 
 $btnCUDATest.Add_Click({ Do-TestCUDA })
+$btnCUDAEnable.Add_Click({ Do-EnableCUDA })
+$btnCUDADisable.Add_Click({ Do-DisableCUDA })
+$btnCUDAShell.Add_Click({ Open-CUDAShell })
+$btnDockerCUDAShell.Add_Click({ Open-DockerCUDAShell })
+$btnDockerStart.Add_Click({ Ensure-DockerRunning })
+$btnDockerInstall.Add_Click({ Ensure-DockerRunning -AutoInstall })
+$btnCUDAInstall.Add_Click({ Install-CUDAToolkit })
+$btnTensorInstall.Add_Click({ Install-TensorFlowGPU })
+$btnGPUFix.Add_Click({ Do-GPUFix })
 
 $cmbMode.Add_SelectedIndexChanged({
   $mode = $cmbMode.SelectedItem.ToString()
   Log "Selected mode: $mode"
 })
 
+$chkDebugLog.Add_CheckedChanged({
+  $lvl = $(if ($chkDebugLog.Checked) { "Debug" } else { "Normal" })
+  Set-LogLevel $lvl
+})
+
 $form.Add_Shown({
+  $chkDebugLog.Checked = ($script:LogLevel -ieq "Debug")
   Log "PLM Environment Admin GUI started (Admin)."
   Log "Tip: Click Detect. If missing components, click Install/Repair. For updates, click Update."
   $s = Detect-Environment

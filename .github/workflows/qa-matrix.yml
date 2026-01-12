@@ -1,0 +1,78 @@
+name: "QA Matrix"
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
+    inputs:
+      enableCudaDocker:
+        description: "Run CUDA/Docker matrix jobs (self-hosted labels)"
+        type: boolean
+        default: false
+      cudaDockerRunnerLabels:
+        description: "JSON array of runner labels that have CUDA and/or Docker available"
+        required: false
+        default: '["windows-cuda","windows-cuda-docker"]'
+
+jobs:
+  windows-qa:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Windows CLI smoke
+        run: pwsh -File qa_test/windows_cli_smoke.ps1 -NonInteractive -ProbeCuda:$false
+
+      - name: Sandbox clone + smoke (no Docker/CUDA)
+        run: pwsh -File qa_test/windows_sandbox_matrix.ps1 -IncludeDocker:$false -IncludeCuda:$false
+
+      - name: Upload QA artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-windows-${{ github.run_id }}
+          path: |
+            C:\Users\runneradmin\AppData\Local\Temp\plm-debug-*.log
+            *.log
+
+  windows-qa-cuda-docker:
+    if: github.event_name == 'workflow_dispatch' && inputs.enableCudaDocker == true
+    strategy:
+      fail-fast: false
+      matrix:
+        runnerLabel: ${{ fromJson(inputs.cudaDockerRunnerLabels || '["windows-cuda","windows-cuda-docker"]') }}
+    runs-on: [self-hosted, ${{ matrix.runnerLabel }}]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Windows CLI smoke (with CUDA probe best-effort)
+        run: pwsh -File qa_test/windows_cli_smoke.ps1 -NonInteractive -ProbeCuda:$true
+
+      - name: Sandbox clone + smoke (with Docker/CUDA toggles)
+        run: pwsh -File qa_test/windows_sandbox_matrix.ps1 -IncludeDocker -IncludeCuda
+
+      - name: Upload QA artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-windows-cuda-docker-${{ github.run_id }}-${{ matrix.runnerLabel }}
+          path: |
+            C:\Users\runneradmin\AppData\Local\Temp\plm-debug-*.log
+            *.log
+
+  linux-qa:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Make scripts executable
+        run: chmod +x qa_test/linux_cli_smoke.sh
+      - name: Run Linux CLI smoke
+        run: qa_test/linux_cli_smoke.sh
+      - name: Upload QA artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-linux-${{ github.run_id }}
+          path: /tmp/plm-debug-*.log

@@ -1,0 +1,38 @@
+
+==================================== ERRORS ====================================
+_ ERROR collecting Code_core_3/plm-formalized/stateful_quantum/tests/test_stateful_and_quantum.py _
+ImportError while importing test module '/home/runner/work/PLM/PLM/Code_core_3/plm-formalized/stateful_quantum/tests/test_stateful_and_quantum.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Code_core_3/plm-formalized/stateful_quantum/tests/test_stateful_and_quantum.py:5: in <module>
+    from plm_formalized import PLMInputs
+E   ModuleNotFoundError: No module named 'plm_formalized'
+_______ ERROR collecting Code_core_3/plm-formalized/tests/test_model.py ________
+ImportError while importing test module '/home/runner/work/PLM/PLM/Code_core_3/plm-formalized/tests/test_model.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Code_core_3/plm-formalized/tests/test_model.py:4: in <module>
+    from plm_formalized import (
+E   ModuleNotFoundError: No module named 'plm_formalized'
+________________________ ERROR collecting cirq_test.py _________________________
+ImportError while importing test module '/home/runner/work/PLM/PLM/cirq_test.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+cirq_test.py:1: in <module>
+    import cirq
+E   ModuleNotFoundError: No module named 'cirq'
+=========================== short test summary info ============================
+ERROR Code_core_3/plm-formalized/stateful_quantum/tests/test_stateful_and_quantum.py
+ERROR Code_core_3/plm-formalized/tests/test_model.py
+ERROR cirq_test.py
+!!!!!!!!!!!!!!!!!!! Interrupted: 3 errors during collection !!!!!!!!!!!!!!!!!!!!
+3 errors in 0.15s

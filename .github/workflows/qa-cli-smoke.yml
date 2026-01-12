@@ -1,0 +1,40 @@
+name: "CLI QA Smoke"
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch: {}
+
+jobs:
+  cli-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Validate CLI imports
+        run: python -m compileall scripts/plm_cli.py
+
+      - name: CLI environment detection (debug)
+        run: python scripts/plm_cli.py --log-level debug --env
+
+      - name: CLI CUDA probe (best-effort)
+        run: |
+          python scripts/plm_cli.py --probe-cuda
+        continue-on-error: true
+
+      - name: CLI export report
+        run: python scripts/plm_cli.py --export-report
+
+      - name: Upload CLI artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-smoke-${{ github.run_id }}
+          path: /tmp/plm-debug-*.log

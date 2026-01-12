@@ -1,0 +1,24 @@
+total 356
+drwxr-xr-x 11 runner runner   4096 Jan  4 04:51 .
+drwxr-xr-x  3 runner runner   4096 Jan  4 04:51 ..
+drwxr-xr-x  7 runner runner   4096 Jan  4 04:51 .git
+drwxr-xr-x  3 runner runner   4096 Jan  4 04:51 .github
+-rw-r--r--  1 runner runner     58 Jan  4 04:51 .gitignore
+drwxr-xr-x  2 runner runner   4096 Jan  4 04:51 .vscode
+drwxr-xr-x  5 runner runner   4096 Jan  4 04:51 Code_core_3
+drwxr-xr-x  3 runner runner   4096 Jan  4 04:51 Deploy
+-rw-r--r--  1 runner runner   1628 Jan  4 04:51 LICENSE
+-rw-r--r--  1 runner runner   1149 Jan  4 04:51 NASA EM FLUX + PLM = WARP.txt
+-rw-r--r--  1 runner runner     61 Jan  4 04:51 Notes
+-rw-r--r--  1 runner runner 228740 Jan  4 04:51 PLM Baseline.vsdx
+-rw-r--r--  1 runner runner    668 Jan  4 04:51 README.md
+-rw-r--r--  1 runner runner   5542 Jan  4 04:51 README.txt
+drwxr-xr-x  6 runner runner   4096 Jan  4 04:51 bak
+-rw-r--r--  1 runner runner     58 Jan  4 04:51 cirq_test.py
+drwxr-xr-x  2 runner runner   4096 Jan  4 04:51 code-core-3
+-rw-r--r--  1 runner runner   1976 Jan  4 04:51 log.rtf
+-rw-r--r--  1 runner runner  44405 Jan  4 04:51 plm base doc.docx
+-rw-r--r--  1 runner runner    618 Jan  4 04:51 plm.rb
+drwxr-xr-x  3 runner runner   4096 Jan  4 04:51 plm_bak
+-rw-r--r--  1 runner runner    280 Jan  4 04:51 pytest.ini
+drwxr-xr-x  2 runner runner   4096 Jan  4 04:51 scripts

@@ -1,0 +1,24 @@
+{"msg":"Guided mode enabled: use quick smoke + safe actions.","user":"johar","source":"gui","session":"39551304-05e3-496b-b860-e68bfadbf807","ts":"2026-01-07T04:47:15"}
+{"msg":"PLM Environment Admin GUI started (Admin).","user":"johar","source":"gui","session":"39551304-05e3-496b-b860-e68bfadbf807","ts":"2026-01-07T04:47:15"}
+{"msg":"Tip: Click Detect. If missing components, click Install/Repair. For updates, click Update.","user":"johar","source":"gui","session":"39551304-05e3-496b-b860-e68bfadbf807","ts":"2026-01-07T04:47:15"}
+{"msg":"Guided mode enabled: use quick smoke + safe actions.","user":"johar","source":"gui","session":"d859e51b-f6f8-4621-8917-df04c11657ce","ts":"2026-01-07T04:54:44"}
+{"msg":"PLM Environment Admin GUI started (Admin).","user":"johar","source":"gui","session":"d859e51b-f6f8-4621-8917-df04c11657ce","ts":"2026-01-07T04:54:44"}
+{"msg":"Tip: Click Detect. If missing components, click Install/Repair. For updates, click Update.","user":"johar","source":"gui","session":"d859e51b-f6f8-4621-8917-df04c11657ce","ts":"2026-01-07T04:54:44"}
+{"ts":"2026-01-07T13:04:11.500304","session":"ced258c1-f05c-4a28-8c8e-b119dd434a45","source":"cli","user":"johar","msg":"cli:env"}
+{"ts":"2026-01-07T13:06:14.775875+00:00","session":"07ae154a-10be-49a8-9c3c-4fabb5352f73","source":"cli","user":"johar","msg":"cli:Smoke test"}
+{"ts":"2026-01-07T13:06:18.637868+00:00","session":"07ae154a-10be-49a8-9c3c-4fabb5352f73","source":"cli","user":"johar","msg":"cli:Smoke test:exit=0"}
+{"msg":"Action \u0027form-shown\u0027 starting...","user":"johar","source":"gui","session":"e2fe9e28-5643-48d9-962a-95ee4a84dc5b","ts":"2026-01-07T05:30:36"}
+{"msg":"Guided mode enabled: use quick smoke + safe actions.","user":"johar","source":"gui","session":"e2fe9e28-5643-48d9-962a-95ee4a84dc5b","ts":"2026-01-07T05:30:36"}
+{"msg":"PLM Environment Admin GUI started (Admin).","user":"johar","source":"gui","session":"e2fe9e28-5643-48d9-962a-95ee4a84dc5b","ts":"2026-01-07T05:30:36"}
+{"msg":"Tip: Click Detect. If missing components, click Install/Repair. For updates, click Update.","user":"johar","source":"gui","session":"e2fe9e28-5643-48d9-962a-95ee4a84dc5b","ts":"2026-01-07T05:30:36"}
+{"msg":"Action \u0027form-shown\u0027 failed: Cannot process argument transformation on parameter \u0027ok\u0027. Cannot convert value \"\" to type \"System.Boolean\". Boolean parameters accept only Boolean values and numbers, such as $True, $False, 1 or 0.","user":"johar","source":"gui","session":"e2fe9e28-5643-48d9-962a-95ee4a84dc5b","ts":"2026-01-07T05:30:38"}
+{"msg":"Action \u0027form-shown\u0027 starting...","user":"johar","source":"gui","session":"f95b5efd-aa75-4f78-b9e8-7bdee1fcfdf4","ts":"2026-01-07T05:32:14"}
+{"msg":"Guided mode enabled: use quick smoke + safe actions.","user":"johar","source":"gui","session":"f95b5efd-aa75-4f78-b9e8-7bdee1fcfdf4","ts":"2026-01-07T05:32:14"}
+{"msg":"PLM Environment Admin GUI started (Admin).","user":"johar","source":"gui","session":"f95b5efd-aa75-4f78-b9e8-7bdee1fcfdf4","ts":"2026-01-07T05:32:14"}
+{"msg":"Tip: Click Detect. If missing components, click Install/Repair. For updates, click Update.","user":"johar","source":"gui","session":"f95b5efd-aa75-4f78-b9e8-7bdee1fcfdf4","ts":"2026-01-07T05:32:14"}
+{"msg":"Heads-up: another session (johar) active recently at 2026-01-07T05:30:38.","user":"johar","source":"gui","session":"f95b5efd-aa75-4f78-b9e8-7bdee1fcfdf4","ts":"2026-01-07T05:32:15"}
+{"msg":"Action \u0027form-shown\u0027 starting...","user":"johar","source":"gui","session":"6cb521a7-3f09-47c2-abf1-f5407b254bb1","ts":"2026-01-07T05:33:10"}
+{"msg":"Guided mode enabled: use quick smoke + safe actions.","user":"johar","source":"gui","session":"6cb521a7-3f09-47c2-abf1-f5407b254bb1","ts":"2026-01-07T05:33:10"}
+{"msg":"PLM Environment Admin GUI started (Admin).","user":"johar","source":"gui","session":"6cb521a7-3f09-47c2-abf1-f5407b254bb1","ts":"2026-01-07T05:33:10"}
+{"msg":"Tip: Click Detect. If missing components, click Install/Repair. For updates, click Update.","user":"johar","source":"gui","session":"6cb521a7-3f09-47c2-abf1-f5407b254bb1","ts":"2026-01-07T05:33:10"}
+{"msg":"Heads-up: another session (johar) active recently at 2026-01-07T05:32:15.","user":"johar","source":"gui","session":"6cb521a7-3f09-47c2-abf1-f5407b254bb1","ts":"2026-01-07T05:33:11"}
