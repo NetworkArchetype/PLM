@@ -1,14 +1,42 @@
 #!/usr/bin/env python3
-"""Pre-commit hook: auto-bump version before commit."""
+"""Pre-commit hook: validate email and auto-bump version before commit."""
 
+import subprocess
 import sys
 from pathlib import Path
+
+# Authorized email
+AUTHORIZED_EMAIL = "networkarchetype@gmail.com"
 
 # Add scripts to path
 repo_root = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(repo_root / "scripts"))
 
+def get_git_config(key):
+    """Get git config value."""
+    result = subprocess.run(
+        ["git", "config", "--get", key],
+        capture_output=True,
+        text=True,
+        check=False
+    )
+    return result.stdout.strip() if result.returncode == 0 else None
+
 try:
+    # Check commit author email
+    author_email = get_git_config("user.email")
+    if not author_email:
+        print("❌ Error: Git user.email not configured", file=sys.stderr)
+        print(f"   Run: git config user.email '{AUTHORIZED_EMAIL}'", file=sys.stderr)
+        sys.exit(1)
+    
+    if author_email != AUTHORIZED_EMAIL:
+        print(f"❌ Error: Unauthorized commit email: {author_email}", file=sys.stderr)
+        print(f"   Only {AUTHORIZED_EMAIL} can commit to this repository", file=sys.stderr)
+        print(f"   Run: git config user.email '{AUTHORIZED_EMAIL}'", file=sys.stderr)
+        sys.exit(1)
+    
+    # Auto-bump version
     from auto_version import main as auto_version_main
     sys.exit(auto_version_main(["--bump-patch", "--stage"]))
 except Exception as e:

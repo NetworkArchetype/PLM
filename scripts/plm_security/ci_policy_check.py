@@ -11,6 +11,9 @@ from dataclasses import dataclass
 from typing import Optional
 
 
+AUTHORIZED_EMAIL = "networkarchetype@gmail.com"
+AUTHORIZED_OWNER = "NetworkArchetype"
+
 PROTECTED_PREFIXES = (
     ".githooks/",
     ".github/workflows/",
@@ -30,6 +33,11 @@ def _run_git(args: list[str]) -> str:
     if result.returncode != 0:
         raise RuntimeError(f"git command failed: {' '.join(args)}")
     return result.stdout.strip()
+
+
+def _get_commit_author_email(commit_sha: str) -> str:
+    """Get the author email for a specific commit."""
+    return _run_git(["log", "-1", "--format=%ae", commit_sha])
 
 
 def _load_event(path: str) -> dict:
@@ -71,11 +79,22 @@ def _is_protected(path: str) -> bool:
 
 def _actor_allowed(actor: str, repo: RepoInfo) -> bool:
     actor_l = actor.lower()
-    if repo.owner_type.lower() == "user":
-        return actor_l == repo.owner_login.lower()
-    # For org-owned repos, only owner is allowed by default
-    # Add policy.json support if needed
-    return actor_l == repo.owner_login.lower()
+    # Check if actor is the authorized owner
+    if repo.owner_login.lower() != AUTHORIZED_OWNER.lower():
+        return False
+    if actor_l != repo.owner_login.lower():
+        return False
+    return True
+
+
+def _check_commit_email(commit_sha: str) -> bool:
+    """Check if commit author email matches authorized email."""
+    try:
+        author_email = _get_commit_author_email(commit_sha)
+        return author_email == AUTHORIZED_EMAIL
+    except Exception as e:
+        sys.stderr.write(f"Warning: Could not verify commit email: {e}\n")
+        return False
 
 
 def _pick_base_head(event: dict) -> tuple[Optional[str], Optional[str]]:
@@ -119,7 +138,13 @@ def main() -> int:
         return 2
 
     if _actor_allowed(actor, repo):
-        print(f"Protected paths changed by authorized actor '{actor}'.")
+        # Also check commit author email
+        if head and not _check_commit_email(head):
+            sys.stderr.write(f"Denied: Commit author email does not match {AUTHORIZED_EMAIL}\n")
+            sys.stderr.write("Only commits from networkarchetype@gmail.com are allowed.\n")
+            return 1
+        
+        print(f"Protected paths changed by authorized actor '{actor}' with correct email.")
         for p in protected:
             print(f"  - {p}")
         return 0
@@ -127,6 +152,7 @@ def main() -> int:
     sys.stderr.write("Denied: protected paths were modified by a non-authorized actor.\n")
     sys.stderr.write(f"Actor: {actor}\n")
     sys.stderr.write(f"Repo owner: {repo.owner_login} (type={repo.owner_type})\n")
+    sys.stderr.write(f"Required: Actor must be {AUTHORIZED_OWNER} with email {AUTHORIZED_EMAIL}\n")
     sys.stderr.write("Protected changes:\n")
     for p in protected:
         sys.stderr.write(f"  - {p}\n")
