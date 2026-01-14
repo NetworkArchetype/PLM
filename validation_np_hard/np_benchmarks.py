@@ -22,6 +22,7 @@ class BenchConfig:
     seed: int = 1337
     minutes: float = 5.0
     per_problem_max_seconds: Optional[float] = None
+    use_gpu: bool = True
 
 
 def _deadline_seconds(cfg: BenchConfig) -> float:
@@ -119,6 +120,112 @@ def tsp_nearest_neighbor(points: Sequence[Point], start: int = 0) -> List[int]:
         tour.append(nxt)
         unvisited.remove(nxt)
     return tour
+
+
+def _detect_accelerators() -> Dict[str, Any]:
+    info: Dict[str, Any] = {
+        "cupy": {"present": False, "cuda": False, "device_count": 0, "error": None},
+        "torch": {"present": False, "cuda": False, "device_count": 0, "error": None},
+    }
+    try:
+        import cupy as cp  # type: ignore
+
+        info["cupy"]["present"] = True
+        try:
+            cnt = int(cp.cuda.runtime.getDeviceCount())
+            info["cupy"]["device_count"] = cnt
+            info["cupy"]["cuda"] = cnt > 0
+        except Exception as exc:
+            info["cupy"]["error"] = str(exc)
+    except Exception as exc:
+        info["cupy"]["error"] = str(exc)
+
+    try:
+        import torch  # type: ignore
+
+        info["torch"]["present"] = True
+        try:
+            cuda_ok = bool(torch.cuda.is_available())
+            info["torch"]["cuda"] = cuda_ok
+            info["torch"]["device_count"] = int(torch.cuda.device_count()) if cuda_ok else 0
+        except Exception as exc:
+            info["torch"]["error"] = str(exc)
+    except Exception as exc:
+        info["torch"]["error"] = str(exc)
+
+    return info
+
+
+def tsp_nearest_neighbor_accel(points: Sequence[Point], start: int = 0) -> Tuple[List[int], Dict[str, Any]]:
+    """Nearest-neighbor tour builder, optionally GPU-accelerated.
+
+    Uses CuPy (CUDA) if available, else Torch (CUDA) if available, else CPU.
+    Returns (tour, meta).
+    """
+
+    n = len(points)
+    meta: Dict[str, Any] = {"backend": "cpu", "used_gpu": False}
+    if n == 0:
+        return [], meta
+
+    acc = _detect_accelerators()
+    if acc["cupy"]["cuda"]:
+        try:
+            import cupy as cp  # type: ignore
+
+            xs = cp.asarray([p[0] for p in points], dtype=cp.float32)
+            ys = cp.asarray([p[1] for p in points], dtype=cp.float32)
+            dx = xs[:, None] - xs[None, :]
+            dy = ys[:, None] - ys[None, :]
+            dist = cp.sqrt(dx * dx + dy * dy)
+
+            visited = cp.zeros((n,), dtype=cp.bool_)
+            tour: List[int] = [int(start)]
+            visited[start] = True
+            cur = int(start)
+            for _ in range(n - 1):
+                row = dist[cur].copy()
+                row[visited] = cp.inf
+                nxt = int(cp.argmin(row).get())
+                tour.append(nxt)
+                visited[nxt] = True
+                cur = nxt
+
+            meta = {"backend": "cupy", "used_gpu": True, "device_count": acc["cupy"]["device_count"]}
+            return tour, meta
+        except Exception as exc:
+            meta = {"backend": "cupy_failed", "used_gpu": False, "error": str(exc)}
+
+    if acc["torch"]["cuda"]:
+        try:
+            import torch  # type: ignore
+
+            device = torch.device("cuda")
+            xs = torch.tensor([p[0] for p in points], dtype=torch.float32, device=device)
+            ys = torch.tensor([p[1] for p in points], dtype=torch.float32, device=device)
+            dx = xs[:, None] - xs[None, :]
+            dy = ys[:, None] - ys[None, :]
+            dist = torch.sqrt(dx * dx + dy * dy)
+
+            visited = torch.zeros((n,), dtype=torch.bool, device=device)
+            tour: List[int] = [int(start)]
+            visited[start] = True
+            cur = int(start)
+            for _ in range(n - 1):
+                row = dist[cur].clone()
+                row[visited] = float("inf")
+                nxt = int(torch.argmin(row).item())
+                tour.append(nxt)
+                visited[nxt] = True
+                cur = nxt
+
+            meta = {"backend": "torch", "used_gpu": True, "device_count": acc["torch"]["device_count"]}
+            return tour, meta
+        except Exception as exc:
+            meta = {"backend": "torch_failed", "used_gpu": False, "error": str(exc)}
+
+    tour = tsp_nearest_neighbor(points, start=start)
+    return tour, meta
 
 
 def tsp_2opt(points: Sequence[Point], tour: List[int], *, max_swaps: int = 2000) -> List[int]:
@@ -246,9 +353,13 @@ def run_np_benchmarks(cfg: BenchConfig) -> Dict[str, Any]:
     start = _now()
     budget = _deadline_seconds(cfg)
 
+    accelerators = _detect_accelerators()
+
     results: Dict[str, Any] = {
         "seed": cfg.seed,
         "minutes": cfg.minutes,
+        "use_gpu": cfg.use_gpu,
+        "accelerators": accelerators,
         "started_perf_counter": start,
         "problems": {},
     }
@@ -289,7 +400,11 @@ def run_np_benchmarks(cfg: BenchConfig) -> Dict[str, Any]:
     tsp_n = 200
     while _time_left(tsp_start, tsp_budget) > 0.25 and _time_left(start, budget) > 0.25:
         pts = generate_random_points(rng, tsp_n)
-        tour = tsp_nearest_neighbor(pts, start=0)
+        if cfg.use_gpu:
+            tour, tsp_meta = tsp_nearest_neighbor_accel(pts, start=0)
+        else:
+            tour = tsp_nearest_neighbor(pts, start=0)
+            tsp_meta = {"backend": "cpu", "used_gpu": False}
         base_len = tsp_tour_length(pts, tour)
         tour2 = tsp_2opt(pts, tour, max_swaps=1000)
         improved_len = tsp_tour_length(pts, tour2)
@@ -300,6 +415,7 @@ def run_np_benchmarks(cfg: BenchConfig) -> Dict[str, Any]:
             "improvement": max(0.0, base_len - improved_len),
             "seconds": _now() - tsp_start,
             "note": "Heuristic (nearest-neighbor + 2-opt).",
+            "accel": tsp_meta,
         }
         break
 

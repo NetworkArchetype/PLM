@@ -199,12 +199,14 @@ def check_np_benchmarks() -> CheckResult:
         seed = int(os.environ.get("NP_BENCH_SEED", "1337").strip())
         per_problem = os.environ.get("NP_BENCH_PER_PROBLEM_MAX_SECONDS")
         per_problem_max_seconds = float(per_problem) if per_problem else None
+        use_gpu = os.environ.get("NP_BENCH_USE_GPU", "1").strip() == "1"
 
         report = run_np_benchmarks(
             BenchConfig(
                 seed=seed,
                 minutes=minutes,
                 per_problem_max_seconds=per_problem_max_seconds,
+                use_gpu=use_gpu,
             )
         )
         return CheckResult(name="np_benchmarks", ok=True, details=report)

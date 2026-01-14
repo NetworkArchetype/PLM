@@ -25,12 +25,16 @@ def main() -> int:
     ap.add_argument("--minutes", type=float, default=5.0)
     ap.add_argument("--seed", type=int, default=1337)
     ap.add_argument("--per-problem-max-seconds", type=float, default=None)
+    ap.add_argument("--use-gpu", dest="use_gpu", action="store_true", help="Use CUDA-capable accelerators (CuPy/Torch) when available")
+    ap.add_argument("--no-gpu", dest="use_gpu", action="store_false", help="Force CPU-only")
+    ap.set_defaults(use_gpu=True)
     args = ap.parse_args()
 
     cfg = BenchConfig(
         seed=args.seed,
         minutes=args.minutes,
         per_problem_max_seconds=args.per_problem_max_seconds,
+        use_gpu=bool(args.use_gpu),
     )
     report = run_np_benchmarks(cfg)
 
