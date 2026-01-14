@@ -6,6 +6,23 @@ on:
   pull_request:
     branches: [ master ]
   workflow_dispatch:
+    inputs:
+      volq_shots:
+        description: "VOLQ_SHOTS (shots for volq demo)"
+        required: false
+        default: "25"
+      volq_iters:
+        description: "VOLQ_ITERS (Grover iterations for volq demo)"
+        required: false
+        default: "1"
+      cirq_shots:
+        description: "CIRQ_SHOTS (shots for Cirq demos)"
+        required: false
+        default: "50"
+      cirq_iters:
+        description: "CIRQ_ITERS (Grover iterations for Cirq 3-SAT demo; 0 = sampling)"
+        required: false
+        default: "0"
 
 jobs:
   core-harness:
@@ -79,10 +96,10 @@ jobs:
       - name: Run validation harness
         env:
           VOLQ_QUANTUM_REPO: _third_party/volq-quantum
-          VOLQ_SHOTS: "25"
-          VOLQ_ITERS: "1"
-          CIRQ_SHOTS: "50"
-          CIRQ_ITERS: "0"
+          VOLQ_SHOTS: ${{ inputs.volq_shots }}
+          VOLQ_ITERS: ${{ inputs.volq_iters }}
+          CIRQ_SHOTS: ${{ inputs.cirq_shots }}
+          CIRQ_ITERS: ${{ inputs.cirq_iters }}
         shell: bash
         run: python validation_np_hard/run_validation.py
 
