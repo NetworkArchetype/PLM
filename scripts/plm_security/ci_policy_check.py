@@ -5,6 +5,7 @@ PLM CI Policy Check - Protect critical infrastructure files from unauthorized ch
 
 import json
 import os
+import re
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -91,7 +92,20 @@ def _check_commit_email(commit_sha: str) -> bool:
     """Check if commit author email matches authorized email."""
     try:
         author_email = _get_commit_author_email(commit_sha)
-        return author_email.strip().lower() == AUTHORIZED_EMAIL.strip().lower()
+        author_norm = author_email.strip().lower()
+        authorized_norm = AUTHORIZED_EMAIL.strip().lower()
+
+        # Allow exact configured email
+        if author_norm == authorized_norm:
+            return True
+
+        # Allow GitHub web UI "noreply" email for the owner account
+        # Common forms:
+        # - NetworkArchetype@users.noreply.github.com
+        # - 12345+NetworkArchetype@users.noreply.github.com
+        owner = AUTHORIZED_OWNER.strip()
+        noreply_re = re.compile(rf"^(\d+\+)?{re.escape(owner)}@users\.noreply\.github\.com$", re.IGNORECASE)
+        return noreply_re.match(author_email.strip()) is not None
     except Exception as e:
         sys.stderr.write(f"Warning: Could not verify commit email: {e}\n")
         return False
