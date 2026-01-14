@@ -50,15 +50,19 @@ For branch: `master`
   - Required approvals: 1
   - Dismiss stale pull request approvals when new commits are pushed
 - ✅ **Require status checks to pass before merging**
-  - Required checks:
-    - `enforce-pr-only`
-    - `security-scan`
-    - `validate-version`
-    - `project-safety`
+  - Required checks (use the full "workflow / job" name shown in Actions):
+    - `Project Safety Check / policy-check`
+    - `Version Validation / validate-version`
+    - `Security Checks / security-scan`
+    - (Optional, PR-only) `Security Checks / dependency-review`
 - ✅ **Require branches to be up to date before merging**
 - ✅ **Do not allow bypassing the above settings**
 - ✅ **Restrict who can push to matching branches**
   - Add: `NetworkArchetype` (owner only)
+
+Notes:
+- The "no direct pushes to master" enforcement is primarily handled by the branch protection settings above.
+- The `enforce-pr-only` workflow runs on `push` to `master` as an additional guardrail. If branch protection is configured correctly, it should normally never run on unauthorized direct pushes because those pushes should be blocked.
 
 For branch: `develop` (if used)
 - Same settings as `master`
