@@ -33,7 +33,9 @@ def check_author_authorization() -> bool:
         print(f"   Run: git config user.email '{AUTHORIZED_EMAIL}'", file=sys.stderr)
         return False
     
-    if author_email != AUTHORIZED_EMAIL:
+    author_email_norm = author_email.strip().lower()
+    authorized_email_norm = AUTHORIZED_EMAIL.strip().lower()
+    if author_email_norm != authorized_email_norm:
         print(f"❌ Unauthorized commit email: {author_email}", file=sys.stderr)
         print(f"   Only {AUTHORIZED_EMAIL} can commit to this repository", file=sys.stderr)
         print(f"   Current author: {author_name} <{author_email}>", file=sys.stderr)

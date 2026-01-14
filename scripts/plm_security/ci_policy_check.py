@@ -91,7 +91,7 @@ def _check_commit_email(commit_sha: str) -> bool:
     """Check if commit author email matches authorized email."""
     try:
         author_email = _get_commit_author_email(commit_sha)
-        return author_email == AUTHORIZED_EMAIL
+        return author_email.strip().lower() == AUTHORIZED_EMAIL.strip().lower()
     except Exception as e:
         sys.stderr.write(f"Warning: Could not verify commit email: {e}\n")
         return False
