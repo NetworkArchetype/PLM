@@ -51,6 +51,7 @@ For branch: `master`
   - Dismiss stale pull request approvals when new commits are pushed
 - ✅ **Require status checks to pass before merging**
   - Required checks:
+    - `enforce-pr-only`
     - `security-scan`
     - `validate-version`
     - `project-safety`
