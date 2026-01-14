@@ -1,0 +1,122 @@
+name: "NP-Hard Validation Harness"
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
+
+jobs:
+  core-harness:
+    name: "Harness (core)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run validation harness
+        run: python validation_np_hard/run_validation.py
+
+      - name: Upload harness artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: np-hard-harness-core-${{ github.run_id }}
+          path: |
+            validation_np_hard/report.json
+            validation_np_hard/crash_report.json
+            validation_np_hard/last_run.log
+
+  quantum-harness:
+    name: "Harness (quantum deps: cirq + volq)"
+    if: github.event_name == 'workflow_dispatch'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install quantum dependencies
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "cirq-core>=1.5" "numpy"
+
+      - name: Setup SSH agent (optional)
+        if: ${{ secrets.VOLQ_DEPLOY_KEY != '' }}
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.VOLQ_DEPLOY_KEY }}
+
+      - name: Trust GitHub host key (optional)
+        if: ${{ secrets.VOLQ_DEPLOY_KEY != '' }}
+        shell: bash
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+
+      - name: Clone volq-quantum (SSH if key provided)
+        shell: bash
+        run: |
+          if [ -n "${{ secrets.VOLQ_DEPLOY_KEY }}" ]; then
+            git clone --depth 1 git@github.com:michaelchips/volq-quantum.git _third_party/volq-quantum
+          else
+            git clone --depth 1 https://github.com/michaelchips/volq-quantum.git _third_party/volq-quantum
+          fi
+
+      - name: Run validation harness
+        env:
+          VOLQ_QUANTUM_REPO: _third_party/volq-quantum
+          VOLQ_SHOTS: "25"
+          VOLQ_ITERS: "1"
+          CIRQ_SHOTS: "50"
+          CIRQ_ITERS: "0"
+        shell: bash
+        run: python validation_np_hard/run_validation.py
+
+      - name: Require volq demo to pass
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = json.loads(Path('validation_np_hard/report.json').read_text(encoding='utf-8'))
+          checks = {c['name']: c for c in report.get('checks', [])}
+
+          volq = checks.get('volq_grover_3sat_demo')
+          cirq = checks.get('cirq_smoke')
+          cirq_sat = checks.get('cirq_grover_3sat_demo')
+
+          assert cirq is not None and cirq.get('ok') is True, f"cirq_smoke failed: {cirq}"
+          assert cirq_sat is not None, "cirq_grover_3sat_demo missing"
+          assert cirq_sat['details'].get('skipped') is False, f"cirq_grover_3sat_demo was skipped: {cirq_sat}"
+          assert cirq_sat.get('ok') is True, f"cirq_grover_3sat_demo failed: {cirq_sat}"
+          assert volq is not None, "volq_grover_3sat_demo missing"
+          assert volq['details'].get('skipped') is False, f"volq demo was skipped: {volq}"
+          assert volq.get('ok') is True, f"volq_grover_3sat_demo failed: {volq}"
+
+          print('Quantum harness checks passed.')
+          PY
+
+      - name: Upload harness artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: np-hard-harness-quantum-${{ github.run_id }}
+          path: |
+            validation_np_hard/report.json
+            validation_np_hard/crash_report.json
+            validation_np_hard/last_run.log
