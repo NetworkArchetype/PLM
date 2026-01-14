@@ -8,10 +8,14 @@ from typing import List, Tuple, Dict, Any, Optional
 from .stateful import StatefulPLM
 from .model import plm_secret_value
 
-# Cirq is an optional dependency.
-# Install: pip install cirq
-import cirq
-import sympy
+# Cirq and sympy are optional dependencies.
+# Install: pip install cirq sympy
+try:
+    import cirq  # type: ignore
+    import sympy  # type: ignore
+except Exception:  # pragma: no cover
+    cirq = None  # type: ignore
+    sympy = None  # type: ignore
 
 
 @dataclass(frozen=True)
@@ -55,6 +59,9 @@ def build_parametric_circuit() -> Tuple[cirq.Circuit, sympy.Symbol, cirq.Qid]:
 
     The expectation of Z after this circuit varies with θ.
     """
+    if cirq is None or sympy is None:
+        raise ImportError("Optional dependency missing: install 'cirq' and 'sympy' to use quantum_temporal")
+
     q = cirq.LineQubit(0)
     theta = sympy.Symbol("theta")
 
@@ -87,6 +94,9 @@ def simulate_time_series(
     """
     if cfg is None:
         cfg = QuantumTemporalConfig()
+
+    if cirq is None or sympy is None:
+        raise ImportError("Optional dependency missing: install 'cirq' and 'sympy' to use simulate_time_series")
 
     circuit, theta_sym, q = build_parametric_circuit()
     sim = cirq.Simulator()

@@ -7,7 +7,9 @@ from decimal import Decimal
 
 def test_imports() -> None:
     """Ensure key dependencies are importable (warn on optional GPU libs)."""
-    import cirq
+    import pytest
+
+    cirq = pytest.importorskip("cirq")
     import plm_formalized
 
     print(f"- Cirq installed: {cirq.__version__}")
@@ -23,7 +25,9 @@ def test_imports() -> None:
 
 def test_basic_functionality() -> None:
     """Run a small Cirq circuit and compute simple stats."""
-    import cirq
+    import pytest
+
+    cirq = pytest.importorskip("cirq")
 
     qubits = cirq.LineQubit.range(2)
     circuit = cirq.Circuit(
@@ -52,6 +56,11 @@ def test_basic_functionality() -> None:
 
 def test_plm_components() -> None:
     """Exercise core PLM math + stateful + quantum temporal path."""
+    import pytest
+
+    pytest.importorskip("cirq")
+    pytest.importorskip("sympy")
+
     from plm_formalized.model import PLMInputs, plm_secret_value
     from plm_formalized.stateful import PLMState, StatefulPLM, update_x_linear
     from plm_formalized.quantum_temporal import QuantumTemporalConfig, simulate_time_series
