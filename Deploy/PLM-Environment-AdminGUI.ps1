@@ -1,12 +1,47 @@
-<#  PLM-Environment-AdminGUI.fixed.ps1
-    Admin GUI to detect + manage the environment deployed by Deploy-PLM-Environment.ps1.
-    WinForms GUI (built-in), runs elevated, supports Native/WSL/Docker/Hyper-V modes.
+<#
+  PLM-Environment-AdminGUI.ps1
+
+  Compatibility wrapper.
+  The maintained implementation lives in PLM-Environment-AdminGUI.fixed.ps1.
 #>
 
 [CmdletBinding()]
 param(
   [string]$DeployScriptPath = ""   # optional: full path to Deploy-PLM-Environment.ps1
 )
+
+Set-StrictMode -Version Latest
+$ErrorActionPreference = "Stop"
+
+$fixed = Join-Path -Path (Split-Path -Parent $PSCommandPath) -ChildPath "PLM-Environment-AdminGUI.fixed.ps1"
+if (-not (Test-Path $fixed)) {
+  throw "Expected GUI implementation not found: $fixed"
+}
+
+if ([string]::IsNullOrWhiteSpace($DeployScriptPath)) {
+  & $fixed
+} else {
+  & $fixed -DeployScriptPath $DeployScriptPath
+}
+
+exit 0
+<#  PLM-Environment-AdminGUI.fixed.ps1
+    Admin GUI to detect + manage the environment deployed by Deploy-PLM-Environment.ps1.
+    WinForms GUI (built-in), runs elevated, supports Native/WSL/Docker/Hyper-V modes.
+#>
+
+<#
+  NOTE: The remainder of this file is an older inlined copy of the GUI implementation.
+  It's intentionally commented out to avoid duplicate script headers and parse errors.
+  The maintained implementation is Deploy\PLM-Environment-AdminGUI.fixed.ps1.
+#>
+
+<#
+
+#[CmdletBinding()]
+#param(
+#  [string]$DeployScriptPath = ""   # optional: full path to Deploy-PLM-Environment.ps1
+#)
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
@@ -884,3 +919,5 @@ $form.Add_Shown({
 })
 
 [void]$form.ShowDialog()
+
+#>

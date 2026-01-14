@@ -30,8 +30,13 @@ function Winget-Uninstall([string]$Id) {
 }
 
 function Get-PythonExe {
-    $repoPy = Join-Path $PSScriptRoot "venv\\Scripts\\python.exe"
-    if (Test-Path $repoPy) { return $repoPy }
+    $candidates = @(
+        (Join-Path $PSScriptRoot ".venv\\Scripts\\python.exe"),
+        (Join-Path $PSScriptRoot "venv\\Scripts\\python.exe")
+    )
+    foreach ($repoPy in $candidates) {
+        if (Test-Path $repoPy) { return $repoPy }
+    }
     if (Get-Command python -ErrorAction SilentlyContinue) { return "python" }
     return $null
 }
