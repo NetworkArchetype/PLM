@@ -172,6 +172,75 @@ def check_toy_3sat_bruteforce() -> CheckResult:
         },
     )
 
+def check_np_benchmarks() -> CheckResult:
+    """Run time-bounded NP(-complete) benchmarks (localhost only).
+
+    This check is opt-in so CI stays fast.
+
+    Env:
+      - NP_BENCH_ENABLE=1 to run
+      - NP_BENCH_MINUTES (default 5)
+      - NP_BENCH_SEED (default 1337)
+      - NP_BENCH_PER_PROBLEM_MAX_SECONDS (optional)
+    """
+
+    enabled = os.environ.get("NP_BENCH_ENABLE", "0").strip() == "1"
+    if not enabled:
+        return CheckResult(
+            name="np_benchmarks",
+            ok=True,
+            details={"skipped": True, "reason": "NP_BENCH_ENABLE != 1"},
+        )
+
+    try:
+        from np_benchmarks import BenchConfig, run_np_benchmarks
+
+        minutes = float(os.environ.get("NP_BENCH_MINUTES", "5").strip())
+        seed = int(os.environ.get("NP_BENCH_SEED", "1337").strip())
+        per_problem = os.environ.get("NP_BENCH_PER_PROBLEM_MAX_SECONDS")
+        per_problem_max_seconds = float(per_problem) if per_problem else None
+
+        report = run_np_benchmarks(
+            BenchConfig(
+                seed=seed,
+                minutes=minutes,
+                per_problem_max_seconds=per_problem_max_seconds,
+            )
+        )
+        return CheckResult(name="np_benchmarks", ok=True, details=report)
+    except Exception as exc:
+        return CheckResult(name="np_benchmarks", ok=False, details={"error": str(exc)})
+
+
+def check_crypto_rsa_demo() -> CheckResult:
+    """Safe RSA crypto demo (keygen + sign/verify + encrypt/decrypt).
+
+    This does NOT attempt to break RSA.
+
+    Env:
+      - CRYPTO_DEMO_ENABLE=1 to run
+    """
+
+    enabled = os.environ.get("CRYPTO_DEMO_ENABLE", "0").strip() == "1"
+    if not enabled:
+        return CheckResult(
+            name="crypto_rsa_demo",
+            ok=True,
+            details={"skipped": True, "reason": "CRYPTO_DEMO_ENABLE != 1"},
+        )
+
+    try:
+        from crypto_demo import rsa_keygen_smoke
+
+        details = rsa_keygen_smoke()
+        if details.get("skipped") is True:
+            return CheckResult(name="crypto_rsa_demo", ok=True, details=details)
+
+        ok = bool(details.get("signature_ok")) and bool(details.get("encrypt_decrypt_ok"))
+        return CheckResult(name="crypto_rsa_demo", ok=ok, details=details)
+    except Exception as exc:
+        return CheckResult(name="crypto_rsa_demo", ok=False, details={"error": str(exc)})
+
 
 def capability_scan_keywords() -> CheckResult:
     """Scan repo text for explicit solver keywords.
@@ -387,6 +456,8 @@ def main() -> int:
         checks.extend(check_plm_guardrails())
         checks.append(check_stateful_plm_determinism())
         checks.append(check_toy_3sat_bruteforce())
+        checks.append(check_np_benchmarks())
+        checks.append(check_crypto_rsa_demo())
         checks.append(capability_scan_keywords())
         checks.extend(check_quantum_np_hard_demo())
 
