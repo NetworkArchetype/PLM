@@ -427,16 +427,16 @@ def check_quantum_np_hard_demo() -> List[CheckResult]:
         )
     )
 
-    # Keep this demo lightweight; volq backends can be slow in pure Python.
-    # You can override for deeper local experimentation.
+    # Keep this demo reasonably lightweight; volq backends can be slow in pure Python.
+    # Defaults are chosen to reduce flakiness from sampling noise.
     try:
-        volq_shots = int(os.environ.get("VOLQ_SHOTS", "25"))
+        volq_shots = int(os.environ.get("VOLQ_SHOTS", "200"))
     except ValueError:
-        volq_shots = 25
+        volq_shots = 200
     try:
-        volq_iters = int(os.environ.get("VOLQ_ITERS", "1"))
+        volq_iters = int(os.environ.get("VOLQ_ITERS", "2"))
     except ValueError:
-        volq_iters = 1
+        volq_iters = 2
 
     volq_res = run_volq_grover_3sat_demo(shots=volq_shots, iters=volq_iters, seed=0)
     results.append(
