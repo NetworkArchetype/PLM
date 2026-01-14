@@ -1,0 +1,12 @@
+# CODEOWNERS
+# These rules are enforced when branch protection enables:
+# "Require review from Code Owners".
+#
+# Only protected infrastructure paths are owned.
+
+/.githooks/                 @NetworkArchetype
+/.github/workflows/         @NetworkArchetype
+/VERSION                    @NetworkArchetype
+/scripts/auto_version.py    @NetworkArchetype
+/scripts/version_audit.py   @NetworkArchetype
+/scripts/plm_security/      @NetworkArchetype
