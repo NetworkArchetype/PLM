@@ -14,9 +14,10 @@ In this case Y is the hexadecimal value for the public key hash as a child of ch
 
 ## Getting started (local clone, x86-64 Cirq)
 
-- Fully autonomous install + smoke (TensorFlow GPU, default after 5s): `powershell -ExecutionPolicy Bypass -File ./start_plm.ps1` and let it auto-select option 0, or run `powershell -ExecutionPolicy Bypass -File ./scripts/auto_install_and_smoke.ps1`
+- Fully autonomous install + smoke (TensorFlow + Torch; GPU where available, default after 5s): `powershell -ExecutionPolicy Bypass -File ./start_plm.ps1` and let it auto-select option 0, or run `powershell -ExecutionPolicy Bypass -File ./scripts/auto_install_and_smoke.ps1`
 - Fast start (choose GUI or CLI): `powershell -ExecutionPolicy Bypass -File ./start_plm.ps1`
 - Clone + install manually: `python -m venv venv && ./venv/Scripts/python.exe -m pip install -e ./Code_core_3/plm-formalized`
+- Install recommended ML stack (TensorFlow + Torch, plus best-effort CuPy when CUDA is present): `./venv/Scripts/python.exe ./scripts/plm_cli.py --install-tf-gpu`
 - Optional GPU sim: `./venv/Scripts/python.exe -m pip install qsimcirq`
 - Smoke test (CI-like): `./venv/Scripts/python.exe test_installation.py`
 - One-command local CI helper: `powershell -ExecutionPolicy Bypass -File ./scripts/local_ci.ps1` (add `-WithGPU` to install qsimcirq)
@@ -25,7 +26,7 @@ In this case Y is the hexadecimal value for the public key hash as a child of ch
 - Start menu presets: `start_plm.ps1` includes options 0 (autonomous TF GPU), 8 (native-only GPU), 9 (container-only), A (advanced), B (auto-detect CUDA: native if detected, disabled if not; container PLM), H (Help); Enter defaults to Admin GUI.
 - CUDA toggle: `powershell -ExecutionPolicy Bypass -File ./Configure-CUDA.ps1 -Enable` (or `-Disable`)
 
-This project targets Windows x86-64 with Python 3.9+ (tested on 3.12). Cirq runs CPU by default; if `qsimcirq` is installed and CUDA is enabled, GPU-backed simulation is used. Note: TensorFlow GPU is not supported on Windows; TF installs as CPU-only.
+This project targets Windows x86-64 with Python 3.9+ (tested on 3.12). Cirq runs CPU by default; if `qsimcirq` is installed and CUDA is enabled, the project will attempt GPU-backed simulation and fall back gracefully if the installed qsim build does not include GPU support. Note: TensorFlow GPU is not supported natively on Windows; TensorFlow installs as CPU-only on Windows.
 
 ## Troubleshooting
 

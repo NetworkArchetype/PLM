@@ -309,77 +309,182 @@ def probe_cuda() -> None:
     print("CUDA/GPU probe...")
     append_context("cli:probe-cuda")
     _log_store_event("probe", "cli:probe-cuda", None)
+
+    result = {
+        "nvidia_smi": {"present": False, "raw": ""},
+        "nvcc": {"present": False, "raw": ""},
+        "tensorflow": {"present": False, "raw": "", "gpus": []},
+        "torch": {"present": False, "raw": "", "cuda_available": False, "gpus": []},
+        "cupy": {"present": False, "raw": "", "device_count": 0},
+        "docker": {"present": bool(which("docker")), "gpu_runtime": False, "raw": ""},
+        "cuda_capable": False,
+    }
+
     cuda_path = os.environ.get("CUDA_PATH") or os.environ.get("CUDA_PATH_V12_0") or os.environ.get("CUDA_PATH_V11_0")
     if cuda_path:
         print(f"- CUDA_PATH: {cuda_path}")
+
     nvcc_path = find_nvcc_path()
     if nvcc_path:
         if nvcc_path not in os.environ.get("PATH", ""):
             os.environ["PATH"] = f"{Path(nvcc_path).parent}{os.pathsep}" + os.environ.get("PATH", "")
         print(f"- nvcc path: {nvcc_path}")
-    code, out, err = run(["nvidia-smi"])
-    if code == 0:
+
+    code_smi, out_smi, err_smi = run(["nvidia-smi"])
+    if code_smi == 0:
+        result["nvidia_smi"]["present"] = True
+        result["nvidia_smi"]["raw"] = out_smi
         print("- nvidia-smi OK")
-        if out:
-            print(out)
+        if out_smi:
+            print(out_smi)
     else:
-        print(f"- nvidia-smi not available ({err or code})")
-    _log_store_event("probe", "cli:nvidia-smi", {"exit_code": code, "stdout": out, "stderr": err})
+        print(f"- nvidia-smi not available ({err_smi or code_smi})")
+    _log_store_event("probe", "cli:nvidia-smi", {"exit_code": code_smi, "stdout": out_smi, "stderr": err_smi})
+
     nvcc_ready = False
     if nvcc_path:
-        code, out, err = run([nvcc_path, "--version"])
-        if code == 0:
+        code_nvcc, out_nvcc, err_nvcc = run([nvcc_path, "--version"])
+        if code_nvcc == 0:
             nvcc_ready = True
+            result["nvcc"]["present"] = True
+            result["nvcc"]["raw"] = out_nvcc
             print("- nvcc detected (Toolkit ready)")
-            if out:
-                print(out)
+            if out_nvcc:
+                print(out_nvcc)
         else:
-            print(f"- nvcc found but could not run ({err or code})")
-        _log_store_event("probe", "cli:nvcc", {"exit_code": code, "stdout": out, "stderr": err, "path": nvcc_path})
-    else:
-        print("- nvcc not installed. Run Configure-CUDA.ps1 -Enable to install the CUDA Toolkit (optional if Docker GPU works).")
-        _log_store_event("probe", "cli:nvcc", {"exit_code": 127, "stdout": "", "stderr": "not found"})
+            print(f"- nvcc found but could not run ({err_nvcc or code_nvcc})")
+        _log_store_event("probe", "cli:nvcc", {"exit_code": code_nvcc, "stdout": out_nvcc, "stderr": err_nvcc, "path": nvcc_path})
 
     py = get_python()
-    tf_cmd = [str(py), "-c", "import json,sys; import importlib;\ntry:\n import tensorflow as tf;\n info={'ver':tf.__version__,'gpus':[d.name for d in tf.config.list_physical_devices('GPU')]};\n print(json.dumps(info));\n sys.exit(0)\nexcept Exception as e:\n print(f'ERROR {e}'); sys.exit(1)"]
-    code, out, err = run(tf_cmd)
-    tf_ready = False
-    if code == 0:
-        tf_ready = True
-        log(f"- tensorflow: {out}")
+
+    tf_cmd = [
+        str(py),
+        "-c",
+        "import json,sys\n"
+        "try:\n"
+        " import tensorflow as tf\n"
+        " info={'ver':getattr(tf,'__version__','?'),'gpus':[d.name for d in tf.config.list_physical_devices('GPU')]}\n"
+        " print(json.dumps(info))\n"
+        " sys.exit(0)\n"
+        "except Exception as e:\n"
+        " print('ERROR '+str(e)); sys.exit(1)\n",
+    ]
+    code_tf, out_tf, err_tf = run(tf_cmd)
+    if code_tf == 0:
+        result["tensorflow"]["present"] = True
+        result["tensorflow"]["raw"] = out_tf
+        try:
+            parsed = json.loads(out_tf)
+            result["tensorflow"]["gpus"] = parsed.get("gpus") or []
+        except Exception:
+            pass
+        log(f"- tensorflow: {out_tf}")
     else:
-        log(f"- tensorflow not ready ({err or out or code})")
-    _log_store_event("probe", "cli:tensorflow", {"exit_code": code, "stdout": out, "stderr": err})
+        log(f"- tensorflow not ready ({err_tf or out_tf or code_tf})")
+    _log_store_event("probe", "cli:tensorflow", {"exit_code": code_tf, "stdout": out_tf, "stderr": err_tf})
+
+    torch_cmd = [
+        str(py),
+        "-c",
+        "import json,sys\n"
+        "try:\n"
+        " import torch\n"
+        " info={'ver':getattr(torch,'__version__','?'),'cuda_available':bool(torch.cuda.is_available())}\n"
+        " info['gpus']=[torch.cuda.get_device_name(i) for i in range(torch.cuda.device_count())] if info['cuda_available'] else []\n"
+        " print(json.dumps(info))\n"
+        " sys.exit(0)\n"
+        "except Exception as e:\n"
+        " print('ERROR '+str(e)); sys.exit(1)\n",
+    ]
+    code_torch, out_torch, err_torch = run(torch_cmd)
+    if code_torch == 0:
+        result["torch"]["present"] = True
+        result["torch"]["raw"] = out_torch
+        try:
+            parsed = json.loads(out_torch)
+            result["torch"]["cuda_available"] = bool(parsed.get("cuda_available"))
+            result["torch"]["gpus"] = parsed.get("gpus") or []
+        except Exception:
+            pass
+        log(f"- torch: {out_torch}")
+    else:
+        log(f"- torch not ready ({err_torch or out_torch or code_torch})")
+    _log_store_event("probe", "cli:torch", {"exit_code": code_torch, "stdout": out_torch, "stderr": err_torch})
+
+    cupy_cmd = [
+        str(py),
+        "-c",
+        "import json,sys\n"
+        "try:\n"
+        " import cupy as cp\n"
+        " cnt=int(cp.cuda.runtime.getDeviceCount())\n"
+        " print(json.dumps({'ver':getattr(cp,'__version__','?'),'device_count':cnt}))\n"
+        " sys.exit(0)\n"
+        "except Exception as e:\n"
+        " print('ERROR '+str(e)); sys.exit(1)\n",
+    ]
+    code_cupy, out_cupy, err_cupy = run(cupy_cmd)
+    if code_cupy == 0:
+        result["cupy"]["present"] = True
+        result["cupy"]["raw"] = out_cupy
+        try:
+            parsed = json.loads(out_cupy)
+            result["cupy"]["device_count"] = int(parsed.get("device_count") or 0)
+        except Exception:
+            pass
+        log(f"- cupy: {out_cupy}")
+    else:
+        log(f"- cupy not ready ({err_cupy or out_cupy or code_cupy})")
+    _log_store_event("probe", "cli:cupy", {"exit_code": code_cupy, "stdout": out_cupy, "stderr": err_cupy})
 
     docker_gpu_ready = False
     if which("docker"):
-        code, out, err = run(["docker", "run", "--rm", "--gpus", "all", "nvidia/cuda:12.4.0-base-ubuntu22.04", "nvidia-smi"])
-        if code == 0:
+        code_docker, out_docker, err_docker = run(
+            ["docker", "run", "--rm", "--gpus", "all", "nvidia/cuda:12.4.0-base-ubuntu22.04", "nvidia-smi"]
+        )
+        if code_docker == 0:
             docker_gpu_ready = True
+            result["docker"]["gpu_runtime"] = True
+            result["docker"]["raw"] = out_docker
             log("- docker GPU probe OK (CUDA via container ready)")
-            if out:
-                log(out, context=False)
+            if out_docker:
+                log(out_docker, context=False)
         else:
-            log(f"- docker GPU probe failed ({err or code})")
-        _log_store_event("probe", "cli:docker-gpu", {"exit_code": code, "stdout": out, "stderr": err})
+            log(f"- docker GPU probe failed ({err_docker or code_docker})")
+        _log_store_event("probe", "cli:docker-gpu", {"exit_code": code_docker, "stdout": out_docker, "stderr": err_docker})
 
-    ready_msgs = []
-    nvidia_ok = code == 0
-    ready_msgs = []
-    if nvidia_ok:
+    tf_ready = bool(result["tensorflow"]["present"])
+    torch_cuda = bool(result["torch"]["cuda_available"])
+    cupy_cuda = bool(result["cupy"]["device_count"])
+    cuda_hw = bool(result["nvidia_smi"]["present"]) or nvcc_ready or docker_gpu_ready
+    result["cuda_capable"] = bool(cuda_hw or torch_cuda or cupy_cuda)
+
+    if result["cuda_capable"]:
+        print("CUDA preference: CUDA (when supported); CPU fallback only if required")
+    else:
+        print("CUDA preference: CPU (no CUDA-capable GPU detected)")
+
+    ready_msgs: List[str] = []
+    if result["nvidia_smi"]["present"]:
         ready_msgs.append("nvidia-smi OK")
     if nvcc_ready:
         ready_msgs.append("nvcc OK")
     if docker_gpu_ready:
         ready_msgs.append("CUDA via docker OK")
     if tf_ready:
-        ready_msgs.append("TensorFlow ready")
+        ready_msgs.append("TensorFlow present")
+    if result["torch"]["present"]:
+        ready_msgs.append("Torch present")
+    if result["cupy"]["present"]:
+        ready_msgs.append("CuPy present")
 
-    all_ready = nvidia_ok and nvcc_ready and docker_gpu_ready and tf_ready
-    if all_ready:
-        print(f"CUDA/TensorFlow status: READY ({'; '.join(ready_msgs)})")
+    if ready_msgs:
+        print(f"Status: {'; '.join(ready_msgs)}")
     else:
-        print("CUDA/TensorFlow status: not ready (install CUDA Toolkit via Configure-CUDA.ps1 -Enable and TensorFlow GPU)")
+        print("Status: no GPU/ML components detected")
+
+    if os.name == "nt" and result["nvidia_smi"]["present"] and not (result["tensorflow"]["gpus"]):
+        print("Note: On Windows, TensorFlow GPU is not supported natively; use Torch/CuPy or Docker/WSL2 for TF GPU.")
 
 
 def run_plm_simulation() -> int:
@@ -466,26 +571,20 @@ def install_cuda_toolkit() -> int:
 
 def install_tensorflow_gpu() -> int:
     py = get_python()
-    log(f"Installing TensorFlow GPU with {py} ...")
+    log(f"Installing TensorFlow (GPU where available) with {py} ...")
     code_pip, out_pip, err_pip = run([str(py), "-m", "pip", "install", "--upgrade", "pip"])
     if out_pip:
         log(out_pip, context=False)
     if err_pip:
         log(err_pip, context=False)
+    # Windows: TensorFlow GPU is not supported natively, so prefer explicit CPU build.
+    # Linux/macOS: try tensorflow[and-cuda] then fall back to tensorflow.
+    attempts: List[str] = []
     if os.name == "nt":
-        log("Installing CUDA Toolkit on Windows...")
-        code_cuda, out_cuda, err_cuda = run(["winget", "install", "Nvidia.CUDA", "--accept-package-agreements", "--accept-source-agreements"])
-        if out_cuda:
-            log(out_cuda, context=False)
-        if err_cuda:
-            log(err_cuda, context=False)
-        if code_cuda != 0:
-            log(f"CUDA install failed (exit {code_cuda}); proceeding without.")
-
-    attempts = []
-    if os.name != "nt":  # tensorflow[and-cuda] not supported on Windows
+        attempts.append("tensorflow-cpu")
+    else:
         attempts.append("tensorflow[and-cuda]")
-    attempts.append("tensorflow")
+        attempts.append("tensorflow")
 
     code_tf = 1
     out_tf = ""
@@ -499,6 +598,27 @@ def install_tensorflow_gpu() -> int:
         if code_tf == 0:
             break
         log(f"Install attempt for {pkg} failed (exit {code_tf}); trying next fallback.")
+
+    # Make Torch part of the default preferred path.
+    if code_tf == 0:
+        code_torch, out_torch, err_torch = run([str(py), "-m", "pip", "install", "torch"])
+        if out_torch:
+            log(out_torch, context=False)
+        if err_torch:
+            log(err_torch, context=False)
+        if code_torch != 0:
+            log(f"Torch install failed (exit {code_torch}); continuing.")
+
+        # Best-effort CuPy install when CUDA-capable hardware is present.
+        code_smi, _, _ = run(["nvidia-smi"])
+        if code_smi == 0:
+            code_cupy, out_cupy, err_cupy = run([str(py), "-m", "pip", "install", "cupy"])
+            if out_cupy:
+                log(out_cupy, context=False)
+            if err_cupy:
+                log(err_cupy, context=False)
+            if code_cupy != 0:
+                log(f"CuPy install failed (exit {code_cupy}); continuing.")
 
     _log_store_event("action", "cli:install-tensorflow", {"pip": code_pip, "tf": code_tf})
     return code_tf

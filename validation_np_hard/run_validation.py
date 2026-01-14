@@ -130,6 +130,49 @@ def check_stateful_plm_determinism() -> CheckResult:
     )
 
 
+def check_toy_3sat_bruteforce() -> CheckResult:
+    """Solve a tiny 3-SAT instance by brute force.
+
+    This is a deterministic, bounded NP-complete-class demonstrator (n=3 variables).
+    It does NOT prove solving all NP-hard problems; it proves we can solve *this*
+    NP-hard-class instance every time (because the search space is finite and we
+    exhaustively enumerate it).
+    """
+
+    # CNF:
+    #   C1 = (x0 ∨ x1 ∨ x2)
+    #   C2 = (¬x0 ∨ x1 ∨ ¬x2)
+    def sat(bits: Tuple[int, int, int]) -> bool:
+        x0, x1, x2 = (b == 1 for b in bits)
+        c1 = x0 or x1 or x2
+        c2 = (not x0) or x1 or (not x2)
+        return c1 and c2
+
+    satisfying: List[str] = []
+    witness: str | None = None
+    for a in (0, 1):
+        for b in (0, 1):
+            for c in (0, 1):
+                bits = (a, b, c)
+                if sat(bits):
+                    s = f"{a}{b}{c}"
+                    satisfying.append(s)
+                    if witness is None:
+                        witness = s
+
+    return CheckResult(
+        name="toy_3sat_bruteforce",
+        ok=(witness is not None) and (len(satisfying) > 0),
+        details={
+            "vars": 3,
+            "solution_found": witness is not None,
+            "witness": witness,
+            "satisfying_count": len(satisfying),
+            "satisfying_assignments": satisfying,
+        },
+    )
+
+
 def capability_scan_keywords() -> CheckResult:
     """Scan repo text for explicit solver keywords.
 
@@ -343,6 +386,7 @@ def main() -> int:
         checks.append(check_plm_formula())
         checks.extend(check_plm_guardrails())
         checks.append(check_stateful_plm_determinism())
+        checks.append(check_toy_3sat_bruteforce())
         checks.append(capability_scan_keywords())
         checks.extend(check_quantum_np_hard_demo())
 
@@ -363,6 +407,9 @@ def main() -> int:
                     "hex_valid",
                     "stateful_determinism",
                 }
+            ),
+            "np_hard_demo_ok": all(
+                c.ok for c in checks if c.name in {"toy_3sat_bruteforce", "cirq_grover_3sat_demo", "volq_grover_3sat_demo"}
             ),
             # "Optional" = demos/integrations that may be skipped if deps are absent.
             "all_optional_ok": all(

@@ -10,7 +10,7 @@ python scripts/plm_cli.py --ensure-docker
 ```
 python scripts/plm_cli.py --install-cuda-toolkit
 ```
-4) TensorFlow GPU (best-effort on Windows; see TensorFlow guide):
+4) TensorFlow + Torch (GPU where available; CPU on Windows; see TensorFlow guide):
 ```
 python scripts/plm_cli.py --install-tensorflow
 ```

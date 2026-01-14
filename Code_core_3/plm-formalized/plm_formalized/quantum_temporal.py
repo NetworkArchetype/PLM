@@ -117,7 +117,12 @@ def simulate_time_series(
     if cuda_enabled:
         try:
             import qsimcirq
-            sim = qsimcirq.QSimSimulator()
+            # Prefer GPU execution when available, but fall back gracefully if the
+            # installed qsim build does not include GPU support.
+            try:
+                sim = qsimcirq.QSimSimulator(qsim_options=qsimcirq.QSimOptions(use_gpu=True))
+            except Exception:
+                sim = qsimcirq.QSimSimulator()
         except ImportError:
             try:
                 import tensorflow as tf

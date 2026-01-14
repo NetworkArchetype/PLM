@@ -3,5 +3,10 @@ report.json
 crash_report.json
 last_run.log
 
+# Local debug artifacts (do not commit)
+_pyver.txt
+_term_test.txt
+volq_smoke.log
+
 # Local clone(s) of volq-quantum for optional demo
 _deps/

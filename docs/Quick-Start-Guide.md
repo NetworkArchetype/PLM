@@ -24,6 +24,12 @@ Run the smoke test (verifies Cirq + PLM + basic functionality):
 .\venv\Scripts\python.exe .\scripts\plm_cli.py --smoke
 ```
 
+Install the recommended ML stack (TensorFlow + Torch; GPU where available, CPU on Windows):
+
+```bash
+.\venv\Scripts\python.exe .\scripts\plm_cli.py --install-tf-gpu
+```
+
 Or run the full PLM quantum temporal simulation:
 
 ```bash
