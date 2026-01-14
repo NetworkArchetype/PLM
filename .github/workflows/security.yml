@@ -1,0 +1,135 @@
+name: Security Checks
+
+on:
+  push:
+    branches: [master, develop]
+  pull_request:
+    branches: [master, develop]
+  schedule:
+    # Run weekly security scans on Sunday at 00:00 UTC
+    - cron: '0 0 * * 0'
+
+jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      
+      - name: Install security tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install bandit safety pip-audit
+      
+      - name: Run Bandit (SAST)
+        run: |
+          echo "Running Bandit security scan..."
+          bandit -r . -f json -o bandit-report.json || true
+          bandit -r . -ll
+        continue-on-error: true
+      
+      - name: Run Safety (dependency vulnerabilities)
+        run: |
+          echo "Checking for known security vulnerabilities in dependencies..."
+          if [ -f "requirements.txt" ]; then
+            safety check -r requirements.txt --json > safety-report.json || true
+            safety check -r requirements.txt || true
+          fi
+          if [ -f "Code_core_3/plm-formalized/pyproject.toml" ]; then
+            cd Code_core_3/plm-formalized
+            safety check || true
+            cd ../..
+          fi
+        continue-on-error: true
+      
+      - name: Run pip-audit (dependency audit)
+        run: |
+          echo "Auditing installed packages..."
+          if [ -f "requirements.txt" ]; then
+            pip install -r requirements.txt
+            pip-audit --format json > pip-audit-report.json || true
+            pip-audit || true
+          fi
+        continue-on-error: true
+      
+      - name: Check for secrets in code
+        run: |
+          echo "Checking for potential secrets..."
+          # Look for common secret patterns
+          git grep -iE '(api[_-]?key|password|secret|token|auth[_-]?token|aws[_-]?access[_-]?key|private[_-]?key).*=.*["\047]' -- '*.py' '*.ps1' '*.sh' '*.yml' '*.yaml' || echo "No secrets found"
+      
+      - name: Upload security reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: |
+            *-report.json
+          if-no-files-found: ignore
+      
+  dependency-review:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: moderate
+
+  protected-files-check:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      
+      - name: Check for changes to protected infrastructure
+        run: |
+          echo "Checking for changes to protected infrastructure files..."
+          PROTECTED_PATHS=(
+            ".githooks/"
+            ".github/workflows/"
+            "scripts/auto_version.py"
+            "scripts/version_audit.py"
+            "scripts/plm_security/"
+            "VERSION"
+          )
+          
+          CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "")
+          
+          if [ -z "$CHANGED_FILES" ]; then
+            echo "No changes detected (might be first commit)"
+            exit 0
+          fi
+          
+          PROTECTED_CHANGED=""
+          for path in "${PROTECTED_PATHS[@]}"; do
+            if echo "$CHANGED_FILES" | grep -q "^$path"; then
+              PROTECTED_CHANGED="$PROTECTED_CHANGED\n  - $path"
+            fi
+          done
+          
+          if [ -n "$PROTECTED_CHANGED" ]; then
+            echo "⚠️  Changes detected in protected infrastructure:"
+            echo -e "$PROTECTED_CHANGED"
+            echo ""
+            echo "Actor: $GITHUB_ACTOR"
+            echo "Repository owner: ${{ github.repository_owner }}"
+            
+            # This check is informational in this workflow
+            # Authorization is enforced by project-safety.yml
+          else
+            echo "✓ No changes to protected infrastructure"
+          fi

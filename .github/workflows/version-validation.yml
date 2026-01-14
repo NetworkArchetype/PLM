@@ -1,0 +1,67 @@
+name: Version Validation
+
+on:
+  push:
+    branches: [master, develop]
+  pull_request:
+    branches: [master, develop]
+
+jobs:
+  validate-version:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for version audit
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      
+      - name: Check VERSION file exists
+        run: |
+          if [ ! -f "VERSION" ]; then
+            echo "❌ VERSION file not found"
+            exit 1
+          fi
+          echo "✓ VERSION file exists"
+      
+      - name: Validate VERSION format
+        run: |
+          VERSION=$(cat VERSION)
+          if ! echo "$VERSION" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "❌ Invalid VERSION format: $VERSION"
+            echo "Expected format: v{major}.{minor}.{patch}"
+            exit 1
+          fi
+          echo "✓ VERSION format valid: $VERSION"
+      
+      - name: Check matching git tag exists
+        run: |
+          VERSION=$(cat VERSION)
+          if ! git tag -l | grep -qE "^${VERSION}$"; then
+            echo "⚠️  Warning: No git tag found matching VERSION: $VERSION"
+            echo "This is expected for new commits before tagging"
+          else
+            echo "✓ Matching git tag exists: $VERSION"
+          fi
+      
+      - name: Run version audit
+        run: |
+          python scripts/version_audit.py
+      
+      - name: Check version in __init__.py
+        run: |
+          VERSION=$(cat VERSION | sed 's/^v//')
+          if [ -f "Code_core_3/plm-formalized/plm_formalized/__init__.py" ]; then
+            if ! grep -q "__version__ = \"${VERSION}\"" Code_core_3/plm-formalized/plm_formalized/__init__.py; then
+              echo "⚠️  Version mismatch in __init__.py"
+              echo "VERSION file: $VERSION"
+              echo "Expected in __init__.py: __version__ = \"${VERSION}\""
+            else
+              echo "✓ Version synchronized in __init__.py"
+            fi
+          fi

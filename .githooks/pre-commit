@@ -1,0 +1,16 @@
+#!/usr/bin/env python3
+"""Pre-commit hook: auto-bump version before commit."""
+
+import sys
+from pathlib import Path
+
+# Add scripts to path
+repo_root = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(repo_root / "scripts"))
+
+try:
+    from auto_version import main as auto_version_main
+    sys.exit(auto_version_main(["--bump-patch", "--stage"]))
+except Exception as e:
+    print(f"pre-commit hook error: {e}", file=sys.stderr)
+    sys.exit(1)
