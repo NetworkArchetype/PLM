@@ -13,6 +13,18 @@ This project prompts for credentials when required and caches them only for the 
 - Alternative: set `PLM_AUTH_TOKEN_FILE` to a file containing the token.
 - When set, prompts are skipped and the token is exported to child processes.
 
+### Using a GitHub token instead (optional)
+If you already have a GitHub token available (for example in CI), you can reuse it as the PLM token source:
+- Set `PLM_AUTH_SOURCE=github` and provide `GITHUB_TOKEN` (or `GH_TOKEN`).
+- File-based tokens are also accepted via `GITHUB_TOKEN_FILE` / `GH_TOKEN_FILE`.
+
+Default behavior is `PLM_AUTH_SOURCE=auto` (prefer `PLM_AUTH_TOKEN`, then fall back to GitHub token env vars).
+
+### Self-generate a PLM token
+For local testing you can generate a strong random token without storing it in the repo:
+- `pwsh -File scripts/new_plm_token.ps1 -StoreInSession -SetEnv`
+- Optional file export (outside repo): `pwsh -File scripts/new_plm_token.ps1 -OutFile "$env:TEMP\plm_token.txt"`
+
 ## Prompted usage (interactive)
 - CLI prompt hides input.
 - GUI prompt (WinForms) hides input and allows cancel.

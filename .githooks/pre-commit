@@ -1,46 +1,89 @@
 #!/usr/bin/env python3
-"""Pre-commit hook: validate email and auto-bump version before commit."""
+"""Pre-commit hook: bump version + run tests (damoclese-sword style)."""
 
+import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import Optional
 
-# Authorized email
+
 AUTHORIZED_EMAIL = "networkarchetype@gmail.com"
 
-# Add scripts to path
-repo_root = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(repo_root / "scripts"))
 
-def get_git_config(key):
-    """Get git config value."""
-    result = subprocess.run(
+def _choose_python(repo_root: Path) -> str:
+    candidates = [
+        repo_root / "venv" / "Scripts" / "python.exe",
+        repo_root / ".venv" / "Scripts" / "python.exe",
+        repo_root / "venv" / "bin" / "python3",
+        repo_root / ".venv" / "bin" / "python3",
+    ]
+    for cand in candidates:
+        if cand.exists():
+            return str(cand)
+    return sys.executable
+
+
+def _run(cmd: list[str], cwd: Path) -> int:
+    r = subprocess.run(cmd, cwd=cwd, check=False)
+    return int(r.returncode)
+
+
+def _get_git_config(key: str) -> Optional[str]:
+    r = subprocess.run(
         ["git", "config", "--get", key],
         capture_output=True,
         text=True,
-        check=False
+        check=False,
     )
-    return result.stdout.strip() if result.returncode == 0 else None
+    if r.returncode != 0:
+        return None
+    v = (r.stdout or "").strip()
+    return v or None
 
-try:
-    # Check commit author email
-    author_email = get_git_config("user.email")
-    if not author_email:
-        print("❌ Error: Git user.email not configured", file=sys.stderr)
-        print(f"   Run: git config user.email '{AUTHORIZED_EMAIL}'", file=sys.stderr)
-        sys.exit(1)
-    
-    author_email_norm = author_email.strip().lower()
-    authorized_email_norm = AUTHORIZED_EMAIL.strip().lower()
-    if author_email_norm != authorized_email_norm:
-        print(f"❌ Error: Unauthorized commit email: {author_email}", file=sys.stderr)
-        print(f"   Only {AUTHORIZED_EMAIL} can commit to this repository", file=sys.stderr)
-        print(f"   Run: git config user.email '{AUTHORIZED_EMAIL}'", file=sys.stderr)
-        sys.exit(1)
-    
-    # Auto-bump version
-    from auto_version import main as auto_version_main
-    sys.exit(auto_version_main(["--bump-patch", "--stage"]))
-except Exception as e:
-    print(f"pre-commit hook error: {e}", file=sys.stderr)
-    sys.exit(1)
+
+def _enforce_auth() -> None:
+    # Mirror reference behavior: auth gate is OFF by default.
+    if os.environ.get("DS_ENFORCE_GITHUB_AUTH_ON_COMMIT") != "1":
+        return
+    email = _get_git_config("user.email")
+    if not email:
+        print("Error: git user.email not configured", file=sys.stderr)
+        print(f"Run: git config user.email '{AUTHORIZED_EMAIL}'", file=sys.stderr)
+        raise SystemExit(1)
+    if email.strip().lower() != AUTHORIZED_EMAIL.strip().lower():
+        print(f"Error: unauthorized commit email: {email}", file=sys.stderr)
+        print(f"Only {AUTHORIZED_EMAIL} can commit to this repository", file=sys.stderr)
+        raise SystemExit(1)
+
+
+def main() -> int:
+    repo_root = Path(__file__).resolve().parents[1]
+    scripts_dir = repo_root / "scripts"
+    sys.path.insert(0, str(scripts_dir))
+
+    py = _choose_python(repo_root)
+
+    if os.environ.get("DS_SKIP_CHECKS") == "1":
+        return 0
+
+    _enforce_auth()
+
+    # Bump version (unless DS_SKIP_VERSION_BUMP=1) and stage version files.
+    if os.environ.get("DS_SKIP_VERSION_BUMP") != "1":
+        from auto_version import main as auto_version_main
+
+        rc = auto_version_main(["--pre-commit", "--stage"])
+        if rc != 0:
+            return rc
+
+    # Always run tests (unless DS_SKIP_CHECKS=1)
+    return _run([py, "-m", "pytest", "-q"], cwd=repo_root)
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except Exception as e:
+        print(f"pre-commit hook error: {e}", file=sys.stderr)
+        raise SystemExit(1)

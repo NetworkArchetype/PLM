@@ -1,0 +1,44 @@
+#!/usr/bin/env python3
+"""prepare-commit-msg hook: optional trace stamping (minimal).
+
+The damoclese-sword reference repo stamps DS-* trace trailers here.
+This PLM mirror keeps it minimal and bypassable.
+"""
+
+import os
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+
+def _append_trailer(msg: str, trailer_line: str) -> str:
+    if trailer_line in msg:
+        return msg
+    if not msg.endswith("\n"):
+        msg += "\n"
+    return msg + f"\n{trailer_line}\n"
+
+
+def main(argv: list[str]) -> int:
+    if os.environ.get("DS_SKIP_TRACE") == "1":
+        return 0
+
+    if len(argv) < 2:
+        return 0
+
+    msg_path = Path(argv[1]).resolve()
+    if not msg_path.exists():
+        return 0
+
+    msg = msg_path.read_text(encoding="utf-8", errors="replace")
+
+    # Minimal trace trailers; safe and deterministic.
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    msg = _append_trailer(msg, f"DS-UTC: {now}")
+
+    msg_path.write_text(msg, encoding="utf-8")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv))

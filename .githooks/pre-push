@@ -1,0 +1,107 @@
+#!/usr/bin/env python3
+"""pre-push hook: run tests and enforce protected-ref checks (damoclese-sword style)."""
+
+import os
+import subprocess
+import sys
+from pathlib import Path
+from typing import Optional
+
+
+AUTHORIZED_EMAIL = "networkarchetype@gmail.com"
+
+
+def _choose_python(repo_root: Path) -> str:
+    candidates = [
+        repo_root / "venv" / "Scripts" / "python.exe",
+        repo_root / ".venv" / "Scripts" / "python.exe",
+        repo_root / "venv" / "bin" / "python3",
+        repo_root / ".venv" / "bin" / "python3",
+    ]
+    for cand in candidates:
+        if cand.exists():
+            return str(cand)
+    return sys.executable
+
+
+def _run(cmd: list[str], cwd: Path) -> int:
+    r = subprocess.run(cmd, cwd=cwd, check=False)
+    return int(r.returncode)
+
+
+def _get_git_config(key: str) -> Optional[str]:
+    r = subprocess.run(
+        ["git", "config", "--get", key],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if r.returncode != 0:
+        return None
+    v = (r.stdout or "").strip()
+    return v or None
+
+
+def _enforce_auth_for_protected_push() -> None:
+    email = _get_git_config("user.email")
+    if not email:
+        print("Error: git user.email not configured", file=sys.stderr)
+        raise SystemExit(1)
+    if email.strip().lower() != AUTHORIZED_EMAIL.strip().lower():
+        print(f"Error: unauthorized push email: {email}", file=sys.stderr)
+        print(f"Only {AUTHORIZED_EMAIL} can push protected refs", file=sys.stderr)
+        raise SystemExit(1)
+
+
+def _is_protected_ref(remote_ref: str) -> bool:
+    if remote_ref in ("refs/heads/main", "refs/heads/master"):
+        return True
+    if remote_ref.startswith("refs/tags/v"):
+        return True
+    return False
+
+
+def main(argv: list[str]) -> int:
+    repo_root = Path(__file__).resolve().parents[1]
+    py = _choose_python(repo_root)
+
+    if os.environ.get("DS_SKIP_CHECKS") == "1":
+        return 0
+
+    remote_name = argv[1] if len(argv) > 1 else ""
+
+    # Input lines: <local ref> <local sha> <remote ref> <remote sha>
+    protected = False
+    for line in sys.stdin.read().splitlines():
+        parts = line.strip().split()
+        if len(parts) >= 3 and _is_protected_ref(parts[2]):
+            protected = True
+            break
+
+    if protected and remote_name == "origin" and os.environ.get("DS_SKIP_GITHUB_AUTH") != "1":
+        # Reference repo requires GitHub authority for protected refs.
+        _enforce_auth_for_protected_push()
+
+    rc = _run([py, "-m", "pytest", "-q"], cwd=repo_root)
+    if rc != 0:
+        return rc
+
+    # Optional smoke gate on protected pushes.
+    if protected and os.environ.get("DS_SKIP_SMOKE") != "1":
+        # Keep this light-weight: ensure Python can import the package.
+        rc = _run(
+            [
+                py,
+                "-c",
+                "import plm_formalized as p; print(getattr(p,'__version__','unknown'))",
+            ],
+            cwd=repo_root,
+        )
+        if rc != 0:
+            return rc
+
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv))

@@ -47,6 +47,97 @@ function Write-TokenToFile([string]$token) {
   } catch { }
 }
 
+function Get-TrimmedEnv([string]$name) {
+  try {
+    $val = [Environment]::GetEnvironmentVariable($name)
+    if ([string]::IsNullOrWhiteSpace($val)) { return $null }
+    return $val.Trim()
+  } catch {
+    return $null
+  }
+}
+
+function Read-TokenFromPath([string]$path) {
+  if ([string]::IsNullOrWhiteSpace($path)) { return $null }
+  if (-not (Test-Path $path)) { return $null }
+  try {
+    $txt = (Get-Content $path -Raw).Trim()
+    if ($txt) { return $txt }
+  } catch { }
+  return $null
+}
+
+function Resolve-AuthSource {
+  $src = (Get-TrimmedEnv "PLM_AUTH_SOURCE")
+  if (-not $src) { return "auto" }
+  $s = $src.ToLower()
+  if ($s -in @("auto","plm","github")) { return $s }
+  return "auto"
+}
+
+function Get-TokenFromConfiguredSources([string]$source) {
+  # source=plm: PLM_AUTH_TOKEN / PLM_AUTH_TOKEN_FILE
+  # source=github: GITHUB_TOKEN|GH_TOKEN / GITHUB_TOKEN_FILE|GH_TOKEN_FILE
+  # source=auto: prefer PLM, fallback to GitHub
+
+  $token = $null
+
+  if ($source -ieq "plm" -or $source -ieq "auto") {
+    $token = Get-TrimmedEnv "PLM_AUTH_TOKEN"
+    if ($token) { return $token }
+    $token = Read-TokenFromPath (Get-TrimmedEnv "PLM_AUTH_TOKEN_FILE")
+    if ($token) { return $token }
+  }
+
+  if ($source -ieq "github" -or $source -ieq "auto") {
+    $token = Get-TrimmedEnv "GITHUB_TOKEN"
+    if (-not $token) { $token = Get-TrimmedEnv "GH_TOKEN" }
+    if ($token) { return $token }
+
+    $token = Read-TokenFromPath (Get-TrimmedEnv "GITHUB_TOKEN_FILE")
+    if (-not $token) { $token = Read-TokenFromPath (Get-TrimmedEnv "GH_TOKEN_FILE") }
+    if ($token) { return $token }
+  }
+
+  return $null
+}
+
+function New-PlmAuthToken {
+  param(
+    [int]$Bytes = 32,
+    [ValidateSet("base64url","hex")][string]$Format = "base64url",
+    [switch]$StoreInSession
+  )
+
+  if ($Bytes -lt 16) { throw "Bytes must be >= 16" }
+
+  $buf = New-Object byte[] $Bytes
+  $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+  try {
+    $rng.GetBytes($buf)
+  } finally {
+    $rng.Dispose()
+  }
+
+  $token = $null
+  if ($Format -ieq "hex") {
+    $token = ($buf | ForEach-Object { $_.ToString("x2") }) -join ""
+  } else {
+    $b64 = [Convert]::ToBase64String($buf)
+    $token = $b64.TrimEnd("=").Replace("+","-").Replace("/","_")
+  }
+
+  if ([string]::IsNullOrWhiteSpace($token)) { throw "Failed to generate token" }
+
+  if ($StoreInSession) {
+    $script:PlmAuthCache = $token
+    $script:PlmAuthHash = Get-Sha256String $token
+    Write-TokenToFile $token
+  }
+
+  return $token
+}
+
 function Prompt-TokenCLI([string]$PromptTitle) {
   $secure = Read-Host "$PromptTitle (input hidden)" -AsSecureString
   return Get-PlainTextFromSecure $secure
@@ -98,25 +189,20 @@ function Get-PlmAuthToken {
 
   if ($script:PlmAuthCache) { return $script:PlmAuthCache }
 
-  if ($env:PLM_AUTH_TOKEN) {
-    $script:PlmAuthCache = $env:PLM_AUTH_TOKEN
-    $script:PlmAuthHash = Get-Sha256String $script:PlmAuthCache
-    return $script:PlmAuthCache
-  }
-
-  if ($env:PLM_AUTH_TOKEN_FILE -and (Test-Path $env:PLM_AUTH_TOKEN_FILE)) {
-    $fromFile = (Get-Content $env:PLM_AUTH_TOKEN_FILE -Raw).Trim()
-    if ($fromFile) {
-      $script:PlmAuthCache = $fromFile
-      $script:PlmAuthHash = Get-Sha256String $fromFile
-      return $fromFile
-    }
+  $source = Resolve-AuthSource
+  $fromEnv = Get-TokenFromConfiguredSources $source
+  if ($fromEnv) {
+    $script:PlmAuthCache = $fromEnv
+    $script:PlmAuthHash = Get-Sha256String $fromEnv
+    return $fromEnv
   }
 
   $session = Read-TokenFromFile
   if ($session) { $script:PlmAuthCache = $session; return $session }
 
-  if ($NonInteractive) { throw "No authentication token found. Set PLM_AUTH_TOKEN or PLM_AUTH_TOKEN_FILE." }
+  if ($NonInteractive) {
+    throw "No authentication token found. Set PLM_AUTH_TOKEN/PLM_AUTH_TOKEN_FILE (or set PLM_AUTH_SOURCE=github and provide GITHUB_TOKEN/GH_TOKEN)."
+  }
 
   $token = if ($Mode -ieq "GUI") { Prompt-TokenGUI $PromptTitle } else { Prompt-TokenCLI $PromptTitle }
   if ([string]::IsNullOrWhiteSpace($token)) { throw "Authentication canceled or empty." }

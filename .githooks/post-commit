@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
-"""Post-commit hook: create version tag after commit."""
+"""Post-commit hook: create version tag after commit (damoclese-sword style)."""
 
+import os
 import subprocess
 import sys
 from pathlib import Path
 
 
 def main() -> int:
+    if os.environ.get("DS_SKIP_VERSION_TAG") == "1":
+        return 0
+
     repo_root = Path(__file__).resolve().parents[1]
     version_file = repo_root / "VERSION"
     
@@ -16,6 +20,9 @@ def main() -> int:
     version = version_file.read_text().strip()
     if not version:
         return 0
+
+    if not version.startswith("v"):
+        version = f"v{version}"
     
     # Check if tag already exists
     result = subprocess.run(
@@ -32,7 +39,7 @@ def main() -> int:
     
     # Create annotated tag
     subprocess.run(
-        ["git", "tag", "-a", version, "-m", f"Version {version}"],
+        ["git", "tag", "-a", version, "-m", f"Release {version}", "HEAD"],
         cwd=repo_root,
         check=False
     )

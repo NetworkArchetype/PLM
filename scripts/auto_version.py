@@ -8,6 +8,7 @@ import argparse
 import re
 import subprocess
 import sys
+import os
 from pathlib import Path
 from typing import Optional, Tuple
 
@@ -31,28 +32,43 @@ def _read_version_file(repo_root: Path) -> Optional[str]:
     if not version_file.exists():
         return None
     content = version_file.read_text().strip()
-    # Normalize: strip 'v' prefix if present
-    if content.startswith("v"):
-        content = content[1:]
     return content
 
 
 def _write_version_file(repo_root: Path, version: str) -> None:
     version_file = repo_root / "VERSION"
-    # Write with 'v' prefix
-    version_file.write_text(f"v{version}\n")
+    version_file.write_text(f"{version}\n")
+
+
+_VERSION_RE = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)$")
+
+
+def _parse_version(version: str) -> Optional[Tuple[int, int, int]]:
+    v = version.strip()
+    if not v:
+        return None
+    m = _VERSION_RE.match(v)
+    if not m:
+        return None
+    return (int(m.group(1)), int(m.group(2)), int(m.group(3)))
+
+
+def _format_version(major: int, minor: int, patch: int) -> str:
+    # Match damoclese-sword canonical format: v{major}.{minor}.{patch:06d}
+    return f"v{major}.{minor}.{patch:06d}"
 
 
 def _get_latest_version_tag(repo_root: Path) -> Optional[Tuple[int, int, int]]:
+    # Avoid relying on git's version sorting because leading zeros can behave unexpectedly.
     code, out = _run_git(["tag", "-l", "v*"], repo_root)
     if code != 0 or not out:
         return None
 
     versions = []
     for tag in out.splitlines():
-        match = re.match(r"^v?(\d+)\.(\d+)\.(\d+)$", tag.strip())
-        if match:
-            versions.append((int(match.group(1)), int(match.group(2)), int(match.group(3))))
+        parsed = _parse_version(tag.strip())
+        if parsed:
+            versions.append(parsed)
 
     return max(versions) if versions else None
 
@@ -95,6 +111,18 @@ def _maybe_stage_version_files(repo_root: Path) -> None:
         pass
 
 
+def _git_staged_paths(repo_root: Path) -> set[str]:
+    code, out = _run_git(["diff", "--cached", "--name-only"], repo_root)
+    if code != 0 or not out:
+        return set()
+    return {line.strip() for line in out.splitlines() if line.strip()}
+
+
+def _version_without_v(version_with_v: str) -> str:
+    v = version_with_v.strip()
+    return v[1:] if v.startswith("v") else v
+
+
 def main(argv: Optional[list[str]] = None) -> int:
     parser = argparse.ArgumentParser(description="PLM auto version management")
     group = parser.add_mutually_exclusive_group()
@@ -109,6 +137,12 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     repo_root = Path(__file__).resolve().parents[1]
 
+    # Mirror damoclese-sword bypass environment variables.
+    if os.environ.get("DS_SKIP_VERSION_BUMP") == "1":
+        if args.stage:
+            _maybe_stage_version_files(repo_root)
+        return 0
+
     # Determine bump type
     bump_type = "patch"  # default
     if args.bump_minor:
@@ -116,46 +150,58 @@ def main(argv: Optional[list[str]] = None) -> int:
     elif args.bump_major:
         bump_type = "major"
 
-    # Get current version from tags
     latest_tag_version = _get_latest_version_tag(repo_root)
-    if latest_tag_version is None:
-        # No tags yet, start at 0.1.0
-        target_version = (0, 1, 0)
+    staged_paths = _git_staged_paths(repo_root) if args.pre_commit else set()
+    version_file_path = "VERSION"
+
+    # damoclese-sword behavior: in --pre-commit mode, if VERSION is already staged,
+    # treat it as an explicit version set and only canonicalize/sync.
+    if args.pre_commit and version_file_path in staged_paths:
+        raw_version = _read_version_file(repo_root)
+        parsed = _parse_version(raw_version or "")
+        if not parsed:
+            print(f"Invalid VERSION format: {raw_version}", file=sys.stderr)
+            return 1
+        if latest_tag_version and parsed < latest_tag_version:
+            print(
+                f"Refusing to downgrade VERSION behind latest tag: {raw_version} < {_format_version(*latest_tag_version)}",
+                file=sys.stderr,
+            )
+            return 1
+        target_version_tuple = parsed
     elif args.sync_from_version:
-        # Read from VERSION file
-        current_version = _read_version_file(repo_root)
-        if current_version:
-            match = re.match(r"^(\d+)\.(\d+)\.(\d+)$", current_version)
-            if match:
-                target_version = (int(match.group(1)), int(match.group(2)), int(match.group(3)))
-            else:
-                print(f"Invalid VERSION format: {current_version}")
-                return 1
-        else:
-            target_version = (0, 1, 0)
+        raw_version = _read_version_file(repo_root)
+        parsed = _parse_version(raw_version or "")
+        if not parsed:
+            print(f"Invalid VERSION format: {raw_version}", file=sys.stderr)
+            return 1
+        if latest_tag_version and parsed < latest_tag_version:
+            print(
+                f"Refusing to downgrade VERSION behind latest tag: {raw_version} < {_format_version(*latest_tag_version)}",
+                file=sys.stderr,
+            )
+            return 1
+        target_version_tuple = parsed
     else:
-        # Bump from latest tag
-        target_version = _bump_version(latest_tag_version, bump_type)
+        if latest_tag_version is None:
+            base_version = (0, 1, 0)
+        else:
+            base_version = latest_tag_version
+        target_version_tuple = _bump_version(base_version, bump_type)
 
-    target_version_str = f"{target_version[0]}.{target_version[1]}.{target_version[2]}"
+    target_version = _format_version(*target_version_tuple)
+    target_version_no_v = _version_without_v(target_version)
 
-    # Check if already set
-    current_version_file = _read_version_file(repo_root)
-    if current_version_file == target_version_str and not args.sync_from_version:
-        if args.stage:
-            _maybe_stage_version_files(repo_root)
-        return 0
+    # Write VERSION (canonical)
+    _write_version_file(repo_root, target_version)
 
-    # Write VERSION
-    _write_version_file(repo_root, target_version_str)
-
-    # Sync to other files
-    _sync_version_to_files(repo_root, target_version_str)
+    # Sync to other files (canonical without leading 'v')
+    _sync_version_to_files(repo_root, target_version_no_v)
 
     if args.stage:
         _maybe_stage_version_files(repo_root)
 
-    print(f"Version bumped to v{target_version_str}")
+    print(f"Version set to {target_version}")
     return 0
 
 

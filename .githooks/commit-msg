@@ -1,0 +1,49 @@
+#!/usr/bin/env python3
+"""commit-msg hook: append DS-Version trailer (damoclese-sword style)."""
+
+import os
+import sys
+from pathlib import Path
+from typing import Optional
+
+
+def _read_version(repo_root: Path) -> Optional[str]:
+    p = repo_root / "VERSION"
+    if not p.exists():
+        return None
+    v = p.read_text().strip()
+    if not v:
+        return None
+    return v if v.startswith("v") else f"v{v}"
+
+
+def main(argv: list[str]) -> int:
+    if os.environ.get("DS_SKIP_VERSION_TRAILER") == "1":
+        return 0
+
+    if len(argv) < 2:
+        return 0
+
+    msg_path = Path(argv[1]).resolve()
+    repo_root = Path(__file__).resolve().parents[1]
+
+    version = _read_version(repo_root)
+    if not version:
+        return 0
+
+    msg = msg_path.read_text(encoding="utf-8", errors="replace")
+    trailer = f"DS-Version: {version}"
+
+    if trailer in msg:
+        return 0
+
+    if not msg.endswith("\n"):
+        msg += "\n"
+
+    msg += f"\n{trailer}\n"
+    msg_path.write_text(msg, encoding="utf-8")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv))
