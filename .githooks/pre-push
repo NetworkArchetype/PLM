@@ -70,6 +70,13 @@ def main(argv: list[str]) -> int:
 
     remote_name = argv[1] if len(argv) > 1 else ""
 
+    # Local policy: only allow pushing to the configured origin remote (the fork).
+    # This prevents accidental pushes to upstream or other remotes.
+    if remote_name and remote_name != "origin" and os.environ.get("DS_ALLOW_OTHER_REMOTES") != "1":
+        print(f"Blocked push to remote '{remote_name}'. This repo is configured to push only to 'origin'.", file=sys.stderr)
+        print("If you really intend this push, set DS_ALLOW_OTHER_REMOTES=1 for this command.", file=sys.stderr)
+        return 1
+
     # Input lines: <local ref> <local sha> <remote ref> <remote sha>
     protected = False
     for line in sys.stdin.read().splitlines():
