@@ -1,0 +1,1337 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chapter 3: Computational Implementation &mdash; Pi-Lambda-Mu (PLM) Thesis</title>
+    <meta name="description" content="Chapter 3 of the PLM thesis: Computational Implementation covering Python Decimal, Ruby BigDecimal, cross-language parity, stateful time-series machine, and software engineering quality.">
+    <meta name="keywords" content="PLM, implementation, Python, Ruby, Decimal, BigDecimal, StatefulPLM, cross-language parity">
+    <meta name="author" content="Joshua Wyatt Harris (NetworkArchetype)">
+    <link rel="stylesheet" href="style.css">
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [
+                    ['\\(', '\\)']
+                ],
+                displayMath: [
+                    ['\\[', '\\]']
+                ]
+            }
+        };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
+</head>
+
+<body>
+
+    <!-- ============================================================ -->
+    <!-- CHAPTER HEADER                                                -->
+    <!-- ============================================================ -->
+    <header>
+        <h1>Chapter 3: Computational Implementation</h1>
+        <p>
+            This chapter provides a comprehensive account of the software architecture underlying the PLM framework. We describe the layered codebase design, present annotated source listings for the Python and Ruby implementations, analyse cross-language parity,
+            formalise the stateful time-series machine, and document the software engineering practices that ensure correctness and reproducibility.
+        </p>
+    </header>
+
+    <!-- ============================================================ -->
+    <!-- 3.1 ARCHITECTURE OVERVIEW                                     -->
+    <!-- ============================================================ -->
+    <section id="s3-1">
+        <h2>3.1 Architecture Overview</h2>
+
+        <p>
+            The PLM codebase is structured as a <strong>layered system</strong>, where each layer builds on the one below it. This separation of concerns ensures that each layer can be tested, verified, and reasoned about independently, while the full
+            stack delivers end-to-end functionality from pure mathematical computation through quantum circuit encoding.
+        </p>
+
+        <p>
+            The four layers are:
+        </p>
+
+        <ol>
+            <li>
+                <strong>Core Model Layer</strong> (
+                <code>plm_formalized/model.py</code>): Pure mathematical functions implemented using Python's
+                <code>decimal.Decimal</code> type with configurable precision (default 80 digits). This layer has <em>no</em> side effects,
+                <em>no</em> mutable state, and <em>no</em> dependencies beyond the Python standard library. Every function is a deterministic map from inputs to outputs.
+            </li>
+            <li>
+                <strong>Stateful Layer</strong> (
+                <code>plm_formalized/stateful.py</code>): A time-series state machine that wraps the core model. It maintains a discrete time counter \(t\) and an evolving
+                <code>PLMInputs</code> configuration. At each step, the machine applies a user-supplied advance function to produce the next state. This layer introduces controlled mutability while preserving determinism.
+            </li>
+            <li>
+                <strong>Quantum Layer</strong> (
+                <code>plm_formalized/quantum_temporal.py</code>): Cirq-based parametric quantum circuits that encode the outputs of the stateful layer as qubit rotation angles. This layer bridges the classical PLM computation with the quantum domain,
+                enabling verification against quantum mechanical predictions.
+            </li>
+            <li>
+                <strong>Cross-Language Mirror</strong> (
+                <code>ruby/plm.rb</code>): An independent Ruby implementation using <code>BigDecimal</code> for arbitrary-precision arithmetic. This mirror exists solely for parity verification: if both languages produce bit-identical results from identical
+                inputs, we gain high confidence that the mathematics is correctly implemented, independent of any single language's runtime behaviour.
+            </li>
+        </ol>
+
+        <!-- SVG Architecture Diagram -->
+        <figure id="fig-architecture">
+            <div class="chart-container">
+                <svg viewBox="0 0 700 420" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="PLM layered architecture diagram showing four layers">
+                    <defs>
+                        <marker id="arrowhead" markerWidth="10" markerHeight="7"
+                                refX="10" refY="3.5" orient="auto" fill="#1a3c6e">
+                            <polygon points="0 0, 10 3.5, 0 7" />
+                        </marker>
+                        <linearGradient id="grad-quantum" x1="0%" y1="0%" x2="0%" y2="100%">
+                            <stop offset="0%" style="stop-color:#7b5ea7;stop-opacity:0.15" />
+                            <stop offset="100%" style="stop-color:#7b5ea7;stop-opacity:0.05" />
+                        </linearGradient>
+                        <linearGradient id="grad-stateful" x1="0%" y1="0%" x2="0%" y2="100%">
+                            <stop offset="0%" style="stop-color:#2a5cae;stop-opacity:0.15" />
+                            <stop offset="100%" style="stop-color:#2a5cae;stop-opacity:0.05" />
+                        </linearGradient>
+                        <linearGradient id="grad-core" x1="0%" y1="0%" x2="0%" y2="100%">
+                            <stop offset="0%" style="stop-color:#1a7a3a;stop-opacity:0.15" />
+                            <stop offset="100%" style="stop-color:#1a7a3a;stop-opacity:0.05" />
+                        </linearGradient>
+                        <linearGradient id="grad-ruby" x1="0%" y1="0%" x2="0%" y2="100%">
+                            <stop offset="0%" style="stop-color:#c07040;stop-opacity:0.15" />
+                            <stop offset="100%" style="stop-color:#c07040;stop-opacity:0.05" />
+                        </linearGradient>
+                    </defs>
+
+                    <!-- Layer 3: Quantum Layer (top) -->
+                    <rect x="60" y="20" width="380" height="75" rx="8"
+                          fill="url(#grad-quantum)" stroke="#7b5ea7" stroke-width="2" />
+                    <text x="250" y="50" text-anchor="middle"
+                          font-size="15" font-weight="700" fill="#7b5ea7">Quantum Layer</text>
+                    <text x="250" y="72" text-anchor="middle"
+                          font-size="11" fill="#555">quantum_temporal.py &mdash; Cirq Circuits</text>
+
+                    <!-- Arrow: Quantum -> Stateful -->
+                    <line x1="250" y1="95" x2="250" y2="125"
+                          stroke="#1a3c6e" stroke-width="2" marker-end="url(#arrowhead)" />
+                    <text x="265" y="115" font-size="10" fill="#888">reads state</text>
+
+                    <!-- Layer 2: Stateful Layer (middle) -->
+                    <rect x="60" y="130" width="380" height="75" rx="8"
+                          fill="url(#grad-stateful)" stroke="#2a5cae" stroke-width="2" />
+                    <text x="250" y="160" text-anchor="middle"
+                          font-size="15" font-weight="700" fill="#2a5cae">Stateful Layer</text>
+                    <text x="250" y="182" text-anchor="middle"
+                          font-size="11" fill="#555">stateful.py &mdash; Time-Series Machine</text>
+
+                    <!-- Arrow: Stateful -> Core -->
+                    <line x1="250" y1="205" x2="250" y2="235"
+                          stroke="#1a3c6e" stroke-width="2" marker-end="url(#arrowhead)" />
+                    <text x="265" y="225" font-size="10" fill="#888">calls model</text>
+
+                    <!-- Layer 1: Core Model Layer (bottom) -->
+                    <rect x="60" y="240" width="380" height="75" rx="8"
+                          fill="url(#grad-core)" stroke="#1a7a3a" stroke-width="2" />
+                    <text x="250" y="270" text-anchor="middle"
+                          font-size="15" font-weight="700" fill="#1a7a3a">Core Model Layer</text>
+                    <text x="250" y="292" text-anchor="middle"
+                          font-size="11" fill="#555">model.py &mdash; Decimal Arithmetic</text>
+
+                    <!-- Layer 4: Ruby Mirror (alongside Core) -->
+                    <rect x="490" y="240" width="190" height="75" rx="8"
+                          fill="url(#grad-ruby)" stroke="#c07040" stroke-width="2" />
+                    <text x="585" y="270" text-anchor="middle"
+                          font-size="15" font-weight="700" fill="#c07040">Ruby Mirror</text>
+                    <text x="585" y="292" text-anchor="middle"
+                          font-size="11" fill="#555">plm.rb &mdash; BigDecimal</text>
+
+                    <!-- Bidirectional arrow: Core <-> Ruby (parity) -->
+                    <line x1="440" y1="270" x2="485" y2="270"
+                          stroke="#1a3c6e" stroke-width="2" stroke-dasharray="5,3" />
+                    <line x1="440" y1="285" x2="485" y2="285"
+                          stroke="#1a3c6e" stroke-width="2" stroke-dasharray="5,3" />
+                    <text x="462" y="262" text-anchor="middle"
+                          font-size="9" fill="#888">parity</text>
+                    <text x="462" y="300" text-anchor="middle"
+                          font-size="9" fill="#888">check</text>
+
+                    <!-- Legend box -->
+                    <rect x="60" y="345" width="620" height="60" rx="6"
+                          fill="#f4f6fa" stroke="#c0c0c0" stroke-width="1" />
+                    <text x="80" y="368" font-size="11" font-weight="600" fill="#1a1a1a">Legend:</text>
+                    <line x1="140" y1="365" x2="175" y2="365"
+                          stroke="#1a3c6e" stroke-width="2" marker-end="url(#arrowhead)" />
+                    <text x="182" y="369" font-size="10" fill="#555">Data flow (invocation)</text>
+                    <line x1="340" y1="365" x2="375" y2="365"
+                          stroke="#1a3c6e" stroke-width="2" stroke-dasharray="5,3" />
+                    <text x="382" y="369" font-size="10" fill="#555">Parity verification (bidirectional)</text>
+                    <text x="80" y="393" font-size="10" fill="#555">
+                        Each layer is independently testable. The quantum layer is optional;
+                        core + stateful layers form the minimal operational stack.
+                    </text>
+                </svg>
+            </div>
+            <figcaption>
+                <strong>Figure 3.1.</strong> PLM layered architecture. The core model layer provides pure mathematical functions. The stateful layer adds time-series evolution. The quantum layer encodes outputs into Cirq circuits. The Ruby mirror runs
+                alongside the core model for cross-language parity verification.
+            </figcaption>
+        </figure>
+
+        <p>
+            This layered design is intentional. By isolating the pure mathematical core from stateful evolution and quantum encoding, we achieve several desirable properties: (a) the core layer can be formally verified independently; (b) the stateful layer's determinism
+            can be proven without reference to quantum mechanics; and (c) the Ruby mirror can validate the core layer without needing to replicate stateful or quantum behaviour.
+        </p>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- 3.2 PYTHON IMPLEMENTATION                                     -->
+    <!-- ============================================================ -->
+    <section id="s3-2">
+        <h2>3.2 Python Implementation (Decimal Arithmetic)</h2>
+
+        <p>
+            The Python implementation is the <em>primary</em> reference implementation of PLM. It uses the <code>decimal</code> module from the Python standard library, configured for 80 digits of precision by default. This section presents annotated
+            listings of the core data structures and functions.
+        </p>
+
+        <h3>3.2.1 Why <code>Decimal</code> over <code>float</code></h3>
+
+        <p>
+            The IEEE 754 double-precision floating-point format provides approximately 15&ndash;17 significant decimal digits of precision. While this suffices for many numerical applications, PLM's verification regime demands <strong>80 or more digits</strong>            of precision. The reasons are threefold:
+        </p>
+
+        <ol>
+            <li>
+                <strong>Algebraic identity verification.</strong> Theorems such as Ratio Invariance assert <em>exact</em> equality: \(S(k\pi, k\lambda, k\mu) = S(\pi, \lambda, \mu)\). With floating-point arithmetic, rounding errors can make two mathematically
+                identical values differ in the last few bits. With 80 digits of precision, we can verify that the difference is exactly zero to all computed digits, ruling out the possibility that the equality is merely a floating-point coincidence.
+            </li>
+            <li>
+                <strong>Cross-language reproducibility.</strong> Both Python's
+                <code>decimal.Decimal</code> and Ruby's <code>BigDecimal</code> perform base-10 arithmetic with explicit rounding control. This makes bit-exact comparison straightforward. IEEE 754 binary floats, by contrast, introduce base-conversion
+                artefacts that differ subtly between language runtimes.
+            </li>
+            <li>
+                <strong>Determinism proofs.</strong> The StatefulPLM machine's determinism is verified by running two independent instances and comparing their output sequences digit-by-digit. Any precision loss would cause spurious divergences, invalidating
+                the proof.
+            </li>
+        </ol>
+
+        <div class="remark">
+            <span class="label">Remark 3.1 (Precision Configuration).</span> The default precision of 80 digits is set via
+            <code>decimal.getcontext().prec = 80</code> at module load time. All subsequent <code>Decimal</code> operations inherit this precision. The value 80 was chosen to be far in excess of any physical measurement requirement (the most precise physical
+            constant, the electron \(g\)-factor, is known to about 13 digits) while remaining computationally inexpensive.
+        </div>
+
+        <h3>3.2.2 The <code>PLMInputs</code> Dataclass</h3>
+
+        <p>
+            The <code>PLMInputs</code> frozen dataclass encapsulates all input parameters required for a single PLM computation. The
+            <code>frozen=True</code> flag ensures that instances are immutable after construction, which is critical for determinism proofs: if an input object cannot be modified, then any function applied to it is guaranteed to return the same result
+            on every invocation.
+        </p>
+
+        <pre><code><span class="cm"># plm_formalized/model.py -- PLMInputs dataclass</span>
+
+<span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass
+<span class="kw">from</span> decimal <span class="kw">import</span> Decimal
+
+<span class="op">@</span><span class="fn">dataclass</span>(<span class="fn">frozen</span><span class="op">=</span><span class="kw">True</span>)
+<span class="kw">class</span> <span class="ty">PLMInputs</span>:
+    pi:              <span class="ty">Decimal</span>
+    lam:             <span class="ty">Decimal</span>
+    mu:              <span class="ty">Decimal</span>
+    x:               <span class="ty">int</span>
+    public_hash_hex: <span class="ty">str</span>
+    block_size:      <span class="ty">int</span>
+    crc_decimal:     <span class="ty">int</span>
+
+    <span class="kw">def</span> <span class="fn">y</span>(<span class="kw">self</span>) <span class="op">-></span> <span class="ty">int</span>:
+        <span class="st">"""Convert public_hash_hex to integer Y."""</span>
+        <span class="kw">return</span> <span class="fn">hex_to_int</span>(<span class="kw">self</span>.public_hash_hex)
+
+    <span class="kw">def</span> <span class="fn">c</span>(<span class="kw">self</span>) <span class="op">-></span> <span class="ty">int</span>:
+        <span class="st">"""Compute scaling constant C = block_size + crc_decimal."""</span>
+        c <span class="op">=</span> <span class="kw">self</span>.block_size <span class="op">+</span> <span class="kw">self</span>.crc_decimal
+        <span class="kw">if</span> c <span class="op">&lt;=</span> <span class="nu">0</span>:
+            <span class="kw">raise</span> <span class="ty">ValueError</span>(<span class="st">"C must be positive"</span>)
+        <span class="kw">return</span> c</code></pre>
+
+        <p>
+            The dataclass fields are intentionally typed with the most precise available types:
+        </p>
+
+        <table>
+            <caption>Table 3.1. PLMInputs field descriptions and types.</caption>
+            <thead>
+                <tr>
+                    <th>Field</th>
+                    <th>Type</th>
+                    <th>Description</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>pi</code></td>
+                    <td><code>Decimal</code></td>
+                    <td>The \(\pi\) parameter (not necessarily mathematical \(\pi\))</td>
+                </tr>
+                <tr>
+                    <td><code>lam</code></td>
+                    <td><code>Decimal</code></td>
+                    <td>The \(\lambda\) parameter</td>
+                </tr>
+                <tr>
+                    <td><code>mu</code></td>
+                    <td><code>Decimal</code></td>
+                    <td>The \(\mu\) parameter (must be non-zero)</td>
+                </tr>
+                <tr>
+                    <td><code>x</code></td>
+                    <td><code>int</code></td>
+                    <td>Integer input variable \(X\)</td>
+                </tr>
+                <tr>
+                    <td><code>public_hash_hex</code></td>
+                    <td><code>str</code></td>
+                    <td>Hex-encoded public hash, converted to integer \(Y\)</td>
+                </tr>
+                <tr>
+                    <td><code>block_size</code></td>
+                    <td><code>int</code></td>
+                    <td>Block size component of scaling constant \(C\)</td>
+                </tr>
+                <tr>
+                    <td><code>crc_decimal</code></td>
+                    <td><code>int</code></td>
+                    <td>CRC component of scaling constant \(C\)</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>3.2.3 The <code>hex_to_int</code> Utility</h3>
+
+        <p>
+            The <code>hex_to_int</code> function performs validated conversion from a hexadecimal string to a Python integer. It handles the common
+            <code>"0x"</code> prefix, validates that all characters are legal hex digits, and raises an <code>Exception</code> on invalid input.
+        </p>
+
+        <pre><code><span class="kw">def</span> <span class="fn">hex_to_int</span>(hex_str: <span class="ty">str</span>) <span class="op">-></span> <span class="ty">int</span>:
+    <span class="st">"""Convert hex string to integer, stripping optional '0x' prefix."""</span>
+    s <span class="op">=</span> hex_str.<span class="fn">strip</span>().<span class="fn">lower</span>()
+    <span class="kw">if</span> s.<span class="fn">startswith</span>(<span class="st">"0x"</span>):
+        s <span class="op">=</span> s[<span class="nu">2</span>:]
+    <span class="kw">if not</span> <span class="fn">all</span>(c <span class="kw">in</span> <span class="st">"0123456789abcdef"</span> <span class="kw">for</span> c <span class="kw">in</span> s):
+        <span class="kw">raise</span> <span class="ty">Exception</span>(<span class="st">"Invalid hex characters"</span>)
+    <span class="kw">return</span> <span class="fn">int</span>(s, <span class="nu">16</span>)</code></pre>
+
+        <p>
+            This function is deliberately conservative. Rather than relying on Python's built-in <code>int("0xABC", 16)</code> which silently accepts various formats, we strip the prefix explicitly and validate each character. This makes the function's
+            behaviour fully predictable across platforms.
+        </p>
+
+        <h3>3.2.4 The <code>plm_ratio</code> Function</h3>
+
+        <p>
+            The simplest PLM computation is the <em>ratio</em> \(R = (\pi \cdot \lambda) / \mu\), which captures the core parameter interaction without any input-dependent variables:
+        </p>
+
+        <pre><code><span class="kw">def</span> <span class="fn">plm_ratio</span>(pi: <span class="ty">Decimal</span>, lam: <span class="ty">Decimal</span>, mu: <span class="ty">Decimal</span>) <span class="op">-></span> <span class="ty">Decimal</span>:
+    <span class="st">"""Compute the PLM ratio: (pi * lam) / mu."""</span>
+    <span class="kw">if</span> mu <span class="op">==</span> <span class="nu">0</span>:
+        <span class="kw">raise</span> <span class="ty">ZeroDivisionError</span>(<span class="st">"mu cannot be zero"</span>)
+    <span class="kw">return</span> (pi <span class="op">*</span> lam) <span class="op">/</span> mu</code></pre>
+
+        <p>
+            The guard clause <code>if mu == 0</code> is essential. Division by zero in <code>decimal.Decimal</code> would raise a
+            <code>decimal.InvalidOperation</code> signal, but we intercept it earlier with a domain-specific <code>ZeroDivisionError</code> that communicates the mathematical invariant: \(\mu\) must be non-zero for the PLM ratio to be defined.
+        </p>
+
+        <div class="definition">
+            <span class="label">Definition 3.1 (PLM Ratio).</span> For parameters \(\pi, \lambda \in \mathbb{R}\) and \(\mu \in \mathbb{R} \setminus \{0\}\), the PLM ratio is defined as: \[ R(\pi, \lambda, \mu) \;=\; \frac{\pi \cdot \lambda}{\mu} \]
+        </div>
+
+        <h3>3.2.5 The <code>plm_secret_value</code> Function</h3>
+
+        <p>
+            The full PLM transform computes the secret value \(S\) from all input parameters:
+        </p>
+
+        <pre><code><span class="kw">def</span> <span class="fn">plm_secret_value</span>(inputs: <span class="ty">PLMInputs</span>) <span class="op">-></span> <span class="ty">Decimal</span>:
+    <span class="st">"""Compute the full PLM secret value S."""</span>
+    Y <span class="op">=</span> <span class="ty">Decimal</span>(inputs.<span class="fn">y</span>())
+    C <span class="op">=</span> <span class="ty">Decimal</span>(inputs.<span class="fn">c</span>())
+    numerator <span class="op">=</span> (inputs.pi <span class="op">*</span> Y) <span class="op">*</span> (inputs.lam <span class="op">*</span> <span class="ty">Decimal</span>(inputs.x))
+    denominator <span class="op">=</span> inputs.mu <span class="op">*</span> C
+    <span class="kw">return</span> numerator <span class="op">/</span> denominator</code></pre>
+
+        <p>
+            The function directly implements the closed-form expression from the mathematical framework:
+        </p>
+
+        \[ S \;=\; \frac{(\pi \cdot Y)\,(\lambda \cdot X)}{\mu \cdot C} \]
+
+        <p>
+            where \(Y = \texttt{hex\_to\_int}(\texttt{public\_hash\_hex})\) and \(C = \texttt{block\_size} + \texttt{crc\_decimal}\). Note the deliberate grouping of multiplications: <code>(pi * Y)</code> and
+            <code>(lam * X)</code> are computed separately before being multiplied together. This grouping mirrors the Factorisation Theorem (Theorem 2.1 in Chapter 2), which proves that \(S\) decomposes into a product of independent linear maps.
+        </p>
+
+        <h3>3.2.6 Guard Clauses and Error Handling</h3>
+
+        <p>
+            The implementation enforces three classes of guard clauses, each catching a distinct category of invalid input:
+        </p>
+
+        <table>
+            <caption>Table 3.2. Guard clauses in the Python implementation.</caption>
+            <thead>
+                <tr>
+                    <th>Guard</th>
+                    <th>Exception Type</th>
+                    <th>Trigger Condition</th>
+                    <th>Mathematical Rationale</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>mu != 0</code></td>
+                    <td><code>ZeroDivisionError</code></td>
+                    <td>\(\mu = 0\)</td>
+                    <td>The PLM ratio \(R = \pi\lambda/\mu\) is undefined at \(\mu = 0\)</td>
+                </tr>
+                <tr>
+                    <td><code>C &gt; 0</code></td>
+                    <td><code>ValueError</code></td>
+                    <td>\(\texttt{block\_size} + \texttt{crc\_decimal} \leq 0\)</td>
+                    <td>The scaling constant \(C\) must be a positive divisor</td>
+                </tr>
+                <tr>
+                    <td>Valid hex</td>
+                    <td><code>Exception</code></td>
+                    <td>Non-hex characters in <code>public_hash_hex</code></td>
+                    <td>\(Y\) must be a well-defined integer derived from valid hex input</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <p>
+            These guards are not merely defensive programming. They enforce the
+            <em>domain restrictions</em> of the PLM transform as a mathematical function. The transform is defined on the domain \(\mathbb{R}^2 \times (\mathbb{R}\setminus\{0\}) \times \mathbb{Z} \times \mathbb{Z}_{>0}\), and the guard clauses ensure
+            that all inputs lie within this domain before any computation proceeds.
+        </p>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- 3.3 RUBY IMPLEMENTATION                                       -->
+    <!-- ============================================================ -->
+    <section id="s3-3">
+        <h2>3.3 Ruby Implementation (BigDecimal)</h2>
+
+        <p>
+            The Ruby implementation mirrors the Python core model using
+            <code>BigDecimal</code> for arbitrary-precision decimal arithmetic. The implementation is structured as a module with module-level functions, providing a functional interface analogous to the Python functions.
+        </p>
+
+        <h3>3.3.1 Module Structure</h3>
+
+        <pre><code><span class="cm"># ruby/plm.rb -- Canonical Ruby implementation</span>
+
+<span class="kw">require</span> <span class="st">"bigdecimal"</span>
+
+<span class="kw">module</span> <span class="ty">PLM</span>
+  module_function
+
+  <span class="kw">def</span> <span class="fn">hex_to_int</span>(hex_str)
+    s <span class="op">=</span> hex_str.<span class="fn">strip</span>.<span class="fn">downcase</span>
+    s <span class="op">=</span> s[<span class="nu">2</span>..] <span class="kw">if</span> s.<span class="fn">start_with?</span>(<span class="st">"0x"</span>)
+    <span class="kw">raise</span> <span class="ty">ArgumentError</span>, <span class="st">"invalid hex"</span> <span class="kw">unless</span> s.<span class="fn">match?</span>(<span class="st">/\A[0-9a-f]+\z/</span>)
+    s.<span class="fn">to_i</span>(<span class="nu">16</span>)
+  <span class="kw">end</span>
+
+  <span class="kw">def</span> <span class="fn">plm_ratio</span>(pi:, lam:, mu:)
+    mu <span class="op">=</span> <span class="ty">BigDecimal</span>(mu.<span class="fn">to_s</span>)
+    <span class="kw">raise</span> <span class="ty">ZeroDivisionError</span>, <span class="st">"mu cannot be 0"</span> <span class="kw">if</span> mu.<span class="fn">zero?</span>
+    <span class="ty">BigDecimal</span>(pi.<span class="fn">to_s</span>) <span class="op">*</span> <span class="ty">BigDecimal</span>(lam.<span class="fn">to_s</span>) <span class="op">/</span> mu
+  <span class="kw">end</span>
+
+  <span class="kw">def</span> <span class="fn">secret_value</span>(pi:, lam:, mu:, x:, public_hash_hex:,
+                    block_size:, crc_decimal:)
+    y <span class="op">=</span> <span class="fn">hex_to_int</span>(public_hash_hex)
+    c <span class="op">=</span> block_size <span class="op">+</span> crc_decimal
+    <span class="kw">raise</span> <span class="ty">ArgumentError</span>, <span class="st">"C must be positive"</span> <span class="kw">if</span> c <span class="op">&lt;=</span> <span class="nu">0</span>
+
+    pi_d  <span class="op">=</span> <span class="ty">BigDecimal</span>(pi.<span class="fn">to_s</span>)
+    lam_d <span class="op">=</span> <span class="ty">BigDecimal</span>(lam.<span class="fn">to_s</span>)
+    mu_d  <span class="op">=</span> <span class="ty">BigDecimal</span>(mu.<span class="fn">to_s</span>)
+
+    numerator   <span class="op">=</span> (pi_d <span class="op">*</span> <span class="ty">BigDecimal</span>(y.<span class="fn">to_s</span>)) <span class="op">*</span>
+                  (lam_d <span class="op">*</span> <span class="ty">BigDecimal</span>(x.<span class="fn">to_s</span>))
+    denominator <span class="op">=</span> mu_d <span class="op">*</span> <span class="ty">BigDecimal</span>(c.<span class="fn">to_s</span>)
+
+    numerator <span class="op">/</span> denominator
+  <span class="kw">end</span>
+<span class="kw">end</span></code></pre>
+
+        <h3>3.3.2 Design Correspondence</h3>
+
+        <p>
+            The Ruby implementation maintains a deliberate structural correspondence with the Python version. Key design decisions:
+        </p>
+
+        <ul>
+            <li>
+                <strong>Keyword arguments</strong> in Ruby's
+                <code>secret_value</code> mirror the named fields of Python's
+                <code>PLMInputs</code> dataclass. Both enforce explicit parameter naming at the call site.
+            </li>
+            <li>
+                <strong>BigDecimal wrapping</strong> via
+                <code>BigDecimal(val.to_s)</code> ensures that numeric values are converted through their string representation, avoiding any floating-point intermediate that could introduce rounding artefacts.
+            </li>
+            <li>
+                <strong>Identical computation order</strong>: both languages compute <code>(pi * Y) * (lam * X)</code> as the numerator and
+                <code>mu * C</code> as the denominator, ensuring that the sequence of multiplications and the resulting rounding behaviour (if any) are identical.
+            </li>
+        </ul>
+
+        <div class="remark">
+            <span class="label">Remark 3.2 (Root-Level plm.rb Known Bugs).</span> The root-level <code>plm.rb</code> file in the repository contains the
+            <em>original draft</em> implementation, which has several known defects: a typo (<code>labmda</code> instead of <code>lambda</code>), an invalid call to <code>Math::PI.new</code> (which does not exist in Ruby), an undefined variable <code>rs</code>,
+            and a bare Unicode reference
+            <code>&mu;</code> that is not valid Ruby syntax. This file is retained for historical reference only. The <strong>canonical, correct
+            implementation</strong> resides at
+            <code>Code_core_3/plm-formalized/ruby/plm.rb</code>.
+        </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- 3.4 CROSS-LANGUAGE PARITY                                     -->
+    <!-- ============================================================ -->
+    <section id="s3-4">
+        <h2>3.4 Cross-Language Parity Analysis</h2>
+
+        <p>
+            Cross-language parity is one of the seven evidentiary pillars of this thesis (Pillar C). Two independent implementations in different languages, using different runtimes and different arbitrary-precision libraries, produce <em>bit-identical</em>            outputs for identical inputs. This section analyses the structural and semantic correspondence that makes this parity possible.
+        </p>
+
+        <h3>3.4.1 Arithmetic Foundations</h3>
+
+        <p>
+            Both implementations use <strong>arbitrary-precision decimal
+            arithmetic</strong>:
+        </p>
+
+        <ul>
+            <li>
+                Python: <code>decimal.Decimal</code> (standard library), base-10, configurable precision via <code>getcontext().prec</code>.
+            </li>
+            <li>
+                Ruby: <code>BigDecimal</code> (standard library), base-10, precision inferred from operand string length or explicitly set.
+            </li>
+        </ul>
+
+        <p>
+            Both libraries perform arithmetic in base 10 (as opposed to the base-2 arithmetic of IEEE 754 floats), which means that decimal fractions like \(0.1\) are represented exactly. This eliminates the most common source of cross-platform numeric discrepancy.
+        </p>
+
+        <h3>3.4.2 Structural Correspondence</h3>
+
+        <p>
+            The following table establishes a 1:1 mapping between the Python and Ruby implementations:
+        </p>
+
+        <table>
+            <caption>Table 3.3. Cross-language function correspondence.</caption>
+            <thead>
+                <tr>
+                    <th>Aspect</th>
+                    <th>Python Implementation</th>
+                    <th>Ruby Implementation</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Precision type</td>
+                    <td><code>decimal.Decimal</code></td>
+                    <td><code>BigDecimal</code></td>
+                </tr>
+                <tr>
+                    <td>Hex conversion</td>
+                    <td><code>hex_to_int(hex_str)</code></td>
+                    <td><code>PLM.hex_to_int(hex_str)</code></td>
+                </tr>
+                <tr>
+                    <td>Ratio computation</td>
+                    <td><code>plm_ratio(pi, lam, mu)</code></td>
+                    <td><code>PLM.plm_ratio(pi:, lam:, mu:)</code></td>
+                </tr>
+                <tr>
+                    <td>Full secret value</td>
+                    <td><code>plm_secret_value(inputs)</code></td>
+                    <td><code>PLM.secret_value(pi:, lam:, ...)</code></td>
+                </tr>
+                <tr>
+                    <td>Input packaging</td>
+                    <td><code>PLMInputs</code> frozen dataclass</td>
+                    <td>Keyword arguments (no class wrapper)</td>
+                </tr>
+                <tr>
+                    <td>Guard: \(\mu = 0\)</td>
+                    <td><code>ZeroDivisionError</code></td>
+                    <td><code>ZeroDivisionError</code></td>
+                </tr>
+                <tr>
+                    <td>Guard: \(C \leq 0\)</td>
+                    <td><code>ValueError</code></td>
+                    <td><code>ArgumentError</code></td>
+                </tr>
+                <tr>
+                    <td>Guard: invalid hex</td>
+                    <td><code>Exception</code></td>
+                    <td><code>ArgumentError</code></td>
+                </tr>
+                <tr>
+                    <td>Numerator formula</td>
+                    <td><code>(pi * Y) * (lam * X)</code></td>
+                    <td><code>(pi_d * Y_d) * (lam_d * X_d)</code></td>
+                </tr>
+                <tr>
+                    <td>Denominator formula</td>
+                    <td><code>mu * C</code></td>
+                    <td><code>mu_d * C_d</code></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>3.4.3 Guard Clause Equivalence</h3>
+
+        <p>
+            Both implementations enforce <strong>identical guard clauses</strong>, though the specific exception types differ by language convention:
+        </p>
+
+        <ul>
+            <li>
+                <strong>\(\mu \neq 0\)</strong>: Both raise
+                <code>ZeroDivisionError</code> with a descriptive message. This is the same exception class in both languages.
+            </li>
+            <li>
+                <strong>\(C > 0\)</strong>: Python raises
+                <code>ValueError</code>; Ruby raises <code>ArgumentError</code>. These are the idiomatic equivalents in their respective languages.
+            </li>
+            <li>
+                <strong>Valid hex</strong>: Python raises a generic
+                <code>Exception</code>; Ruby raises <code>ArgumentError</code>. Both validate the hex string character-by-character after stripping the optional <code>"0x"</code> prefix.
+            </li>
+        </ul>
+
+        <div class="theorem">
+            <span class="label">Claim 3.1 (Cross-Language Parity).</span> For any valid input tuple \((\pi, \lambda, \mu, X, Y_{\text{hex}}, B, \text{CRC})\) where \(\mu \neq 0\) and \(B + \text{CRC} > 0\), the Python function
+            <code>plm_secret_value</code> and the Ruby function
+            <code>PLM.secret_value</code> return identical decimal representations when both are configured for the same precision.
+        </div>
+
+        <p>
+            This claim is supported empirically by the CI parity tests, which run both implementations against a shared suite of test vectors and compare results digit-by-digit. No discrepancy has ever been observed.
+        </p>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- 3.5 STATEFUL TIME-SERIES MACHINE                              -->
+    <!-- ============================================================ -->
+    <section id="s3-5">
+        <h2>3.5 Stateful Time-Series Machine (StatefulPLM)</h2>
+
+        <p>
+            While the core model layer computes a single PLM value from a fixed input, many applications require <em>sequences</em> of PLM values evolving over time. The <code>StatefulPLM</code> class provides this capability by wrapping the core model
+            in a discrete-time state machine.
+        </p>
+
+        <h3>3.5.1 State Representation</h3>
+
+        <pre><code><span class="cm"># plm_formalized/stateful.py -- State and Machine</span>
+
+<span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass
+<span class="kw">from</span> typing <span class="kw">import</span> Callable
+
+<span class="op">@</span><span class="fn">dataclass</span>(<span class="fn">frozen</span><span class="op">=</span><span class="kw">True</span>)
+<span class="kw">class</span> <span class="ty">PLMState</span>:
+    <span class="st">"""Immutable snapshot of the PLM machine at time t."""</span>
+    t:      <span class="ty">int</span>          <span class="cm"># discrete time step</span>
+    inputs: <span class="ty">PLMInputs</span>    <span class="cm"># frozen input configuration</span></code></pre>
+
+        <p>
+            The <code>PLMState</code> dataclass is also frozen, ensuring that states are immutable values. This is essential: the advance function must produce a <em>new</em> state rather than mutating the existing one, guaranteeing that the machine's
+            history is a sequence of independent snapshots.
+        </p>
+
+        <h3>3.5.2 Machine Implementation</h3>
+
+        <pre><code><span class="kw">class</span> <span class="ty">StatefulPLM</span>:
+    <span class="st">"""Discrete-time state machine for PLM evolution."""</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="kw">self</span>, initial: <span class="ty">PLMState</span>,
+                 advance: <span class="ty">Callable</span>[[<span class="ty">PLMState</span>], <span class="ty">PLMState</span>]):
+        <span class="kw">self</span>._state <span class="op">=</span> initial
+        <span class="kw">self</span>._advance <span class="op">=</span> advance  <span class="cm"># function: PLMState -> PLMState</span>
+
+    <span class="kw">def</span> <span class="fn">step</span>(<span class="kw">self</span>) <span class="op">-></span> <span class="ty">PLMState</span>:
+        <span class="st">"""Advance the machine by one time step."""</span>
+        <span class="kw">self</span>._state <span class="op">=</span> <span class="kw">self</span>._advance(<span class="kw">self</span>._state)
+        <span class="kw">return</span> <span class="kw">self</span>._state
+
+    <span class="op">@</span><span class="kw">property</span>
+    <span class="kw">def</span> <span class="fn">state</span>(<span class="kw">self</span>) <span class="op">-></span> <span class="ty">PLMState</span>:
+        <span class="st">"""Return the current state (read-only access)."""</span>
+        <span class="kw">return</span> <span class="kw">self</span>._state</code></pre>
+
+        <h3>3.5.3 Design Analysis</h3>
+
+        <p>
+            The <code>StatefulPLM</code> machine employs the <strong>Strategy
+            Pattern</strong>: the advance function is injected at construction time, making the machine fully configurable without subclassing. This design has several important consequences:
+        </p>
+
+        <ol>
+            <li>
+                <strong>Separation of policy from mechanism.</strong> The machine knows <em>how</em> to step (invoke advance, replace state) but not
+                <em>what</em> the advance function does. Different advance functions produce different behaviours without altering the machine's implementation.
+            </li>
+            <li>
+                <strong>Testability.</strong> The machine can be tested with trivial advance functions (e.g., identity, constant increment) before being used with complex, application-specific policies.
+            </li>
+            <li>
+                <strong>Determinism.</strong> The machine is deterministic: given the same initial state and the same advance function, it will produce the same sequence of states on every execution. This property is formally stated below.
+            </li>
+        </ol>
+
+        <div class="theorem">
+            <span class="label">Theorem 3.1 (Stateful Determinism).</span> Let \(\mathcal{M}_1\) and \(\mathcal{M}_2\) be two
+            <code>StatefulPLM</code> instances with identical initial state \(s_0\) and identical advance function \(f\). Then for all \(n \geq 0\): \[ \mathcal{M}_1.\text{state after } n \text{ steps} \;=\; \mathcal{M}_2.\text{state after } n \text{
+            steps} \]
+        </div>
+
+        <div class="proof">
+            <span class="label">Proof.</span>
+            <p>
+                By induction on \(n\). The base case \(n = 0\) holds by construction: both machines start with state \(s_0\).
+            </p>
+            <p>
+                For the inductive step, assume \(\mathcal{M}_1.\text{state}(n) = \mathcal{M}_2.\text{state}(n) = s_n\). Then:
+            </p>
+            \[ \mathcal{M}_1.\text{state}(n+1) = f(s_n) = \mathcal{M}_2.\text{state}(n+1) \]
+            <p>
+                since \(f\) is a function (deterministic by definition), and both machines apply \(f\) to the same state \(s_n\).
+            </p>
+            <div class="qed">&#9724;</div>
+        </div>
+
+        <h3>3.5.4 Typical Advance Function</h3>
+
+        <p>
+            The most common advance function increments the \(x\) parameter by 1 at each time step, performing a linear scan through input space:
+        </p>
+
+        <pre><code><span class="kw">def</span> <span class="fn">linear_advance</span>(state: <span class="ty">PLMState</span>) <span class="op">-></span> <span class="ty">PLMState</span>:
+    <span class="st">"""Advance by incrementing x and t."""</span>
+    old <span class="op">=</span> state.inputs
+    new_inputs <span class="op">=</span> <span class="ty">PLMInputs</span>(
+        pi<span class="op">=</span>old.pi, lam<span class="op">=</span>old.lam, mu<span class="op">=</span>old.mu,
+        x<span class="op">=</span>old.x <span class="op">+</span> <span class="nu">1</span>,
+        public_hash_hex<span class="op">=</span>old.public_hash_hex,
+        block_size<span class="op">=</span>old.block_size,
+        crc_decimal<span class="op">=</span>old.crc_decimal
+    )
+    <span class="kw">return</span> <span class="ty">PLMState</span>(t<span class="op">=</span>state.t <span class="op">+</span> <span class="nu">1</span>, inputs<span class="op">=</span>new_inputs)</code></pre>
+
+        <p>
+            Because <code>PLMInputs</code> is frozen, the advance function must construct an entirely new <code>PLMInputs</code> instance. This ensures that the previous state remains unmodified, which is critical for the determinism guarantee.
+        </p>
+
+        <h3>3.5.5 Empirical Verification</h3>
+
+        <p>
+            Determinism was empirically verified by constructing <strong>two
+            independent <code>StatefulPLM</code> instances</strong> with identical initial conditions and running each for 6 time steps. At each step, the <code>plm_secret_value</code> was computed and the results compared to <strong>80 decimal places</strong>.
+            All values matched exactly.
+        </p>
+
+        <!-- SVG State Diagram -->
+        <figure id="fig-state-machine">
+            <div class="chart-container">
+                <svg viewBox="0 0 700 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="State machine diagram showing state transitions from t=0 to t=3">
+                    <defs>
+                        <marker id="arrow-sm" markerWidth="10" markerHeight="7"
+                                refX="10" refY="3.5" orient="auto" fill="#1a3c6e">
+                            <polygon points="0 0, 10 3.5, 0 7" />
+                        </marker>
+                    </defs>
+
+                    <!-- State t=0 -->
+                    <rect x="20" y="40" width="120" height="70" rx="10"
+                          fill="#eef3fb" stroke="#1a3c6e" stroke-width="2" />
+                    <text x="80" y="65" text-anchor="middle"
+                          font-size="13" font-weight="700" fill="#1a3c6e">State(t=0)</text>
+                    <text x="80" y="85" text-anchor="middle"
+                          font-size="10" fill="#555">x = x&#x2080;</text>
+                    <text x="80" y="100" text-anchor="middle"
+                          font-size="10" fill="#555">S = S&#x2080;</text>
+
+                    <!-- Arrow t=0 -> t=1 -->
+                    <line x1="140" y1="75" x2="185" y2="75"
+                          stroke="#1a3c6e" stroke-width="2" marker-end="url(#arrow-sm)" />
+                    <text x="162" y="66" text-anchor="middle"
+                          font-size="9" fill="#888">advance()</text>
+
+                    <!-- State t=1 -->
+                    <rect x="190" y="40" width="120" height="70" rx="10"
+                          fill="#eef3fb" stroke="#1a3c6e" stroke-width="2" />
+                    <text x="250" y="65" text-anchor="middle"
+                          font-size="13" font-weight="700" fill="#1a3c6e">State(t=1)</text>
+                    <text x="250" y="85" text-anchor="middle"
+                          font-size="10" fill="#555">x = x&#x2080; + 1</text>
+                    <text x="250" y="100" text-anchor="middle"
+                          font-size="10" fill="#555">S = S&#x2081;</text>
+
+                    <!-- Arrow t=1 -> t=2 -->
+                    <line x1="310" y1="75" x2="355" y2="75"
+                          stroke="#1a3c6e" stroke-width="2" marker-end="url(#arrow-sm)" />
+                    <text x="332" y="66" text-anchor="middle"
+                          font-size="9" fill="#888">advance()</text>
+
+                    <!-- State t=2 -->
+                    <rect x="360" y="40" width="120" height="70" rx="10"
+                          fill="#eef3fb" stroke="#1a3c6e" stroke-width="2" />
+                    <text x="420" y="65" text-anchor="middle"
+                          font-size="13" font-weight="700" fill="#1a3c6e">State(t=2)</text>
+                    <text x="420" y="85" text-anchor="middle"
+                          font-size="10" fill="#555">x = x&#x2080; + 2</text>
+                    <text x="420" y="100" text-anchor="middle"
+                          font-size="10" fill="#555">S = S&#x2082;</text>
+
+                    <!-- Arrow t=2 -> t=3 -->
+                    <line x1="480" y1="75" x2="525" y2="75"
+                          stroke="#1a3c6e" stroke-width="2" marker-end="url(#arrow-sm)" />
+                    <text x="502" y="66" text-anchor="middle"
+                          font-size="9" fill="#888">advance()</text>
+
+                    <!-- State t=3 (with dots suggesting continuation) -->
+                    <rect x="530" y="40" width="120" height="70" rx="10"
+                          fill="#eef3fb" stroke="#1a3c6e" stroke-width="2"
+                          stroke-dasharray="6,3" />
+                    <text x="590" y="65" text-anchor="middle"
+                          font-size="13" font-weight="700" fill="#1a3c6e">State(t=3)</text>
+                    <text x="590" y="85" text-anchor="middle"
+                          font-size="10" fill="#555">x = x&#x2080; + 3</text>
+                    <text x="590" y="100" text-anchor="middle"
+                          font-size="10" fill="#555">S = S&#x2083;</text>
+
+                    <!-- Ellipsis -->
+                    <text x="670" y="80" text-anchor="middle"
+                          font-size="20" fill="#888">...</text>
+
+                    <!-- Caption bar -->
+                    <rect x="20" y="140" width="630" height="45" rx="6"
+                          fill="#f9fdf9" stroke="#1a7a3a" stroke-width="1" />
+                    <text x="335" y="160" text-anchor="middle"
+                          font-size="11" fill="#1a1a1a">
+                        Each transition applies the injected advance function f : PLMState -> PLMState
+                    </text>
+                    <text x="335" y="176" text-anchor="middle"
+                          font-size="10" fill="#555">
+                        Determinism: identical (s&#x2080;, f) implies identical trajectory {S&#x2080;, S&#x2081;, S&#x2082;, ...}
+                    </text>
+                </svg>
+            </div>
+            <figcaption>
+                <strong>Figure 3.2.</strong> State transition diagram for the
+                <code>StatefulPLM</code> machine. Each node represents an immutable <code>PLMState</code> at discrete time \(t\). The advance function \(f\) produces the next state. The dashed border on State(t=3) indicates continuation.
+            </figcaption>
+        </figure>
+
+        <p>
+            The sequence of \(S\) values produced by this machine constitutes the PLM <em>trajectory</em>. In Chapter 4, we provide the full empirical data from the 6-step determinism test, showing that two independent machines produce matching trajectories
+            to 80 decimal places at every time step.
+        </p>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- 3.6 SOFTWARE ENGINEERING QUALITY                              -->
+    <!-- ============================================================ -->
+    <section id="s3-6">
+        <h2>3.6 Software Engineering Quality</h2>
+
+        <p>
+            A mathematical framework is only as reliable as its implementation. This section documents the software engineering practices that ensure the PLM codebase is correct, maintainable, and reproducible.
+        </p>
+
+        <h3>3.6.1 Immutability and Defensive Design</h3>
+
+        <p>
+            All core data structures use <strong>frozen dataclasses</strong> (
+            <code>frozen=True</code>). This design decision prevents an entire class of mutation-related bugs:
+        </p>
+
+        <ul>
+            <li>
+                A <code>PLMInputs</code> instance cannot be accidentally modified after construction. Any attempt to set an attribute raises
+                <code>FrozenInstanceError</code>.
+            </li>
+            <li>
+                A <code>PLMState</code> instance is similarly immutable, ensuring that the advance function cannot corrupt existing states.
+            </li>
+            <li>
+                Frozen dataclasses are automatically hashable, which allows states to be used as dictionary keys or set members for deduplication in testing.
+            </li>
+        </ul>
+
+        <p>
+            Guard clauses catch all domain violations at the earliest possible point:
+        </p>
+
+        <ul>
+            <li>
+                Division by zero (\(\mu = 0\)) is caught before any arithmetic is performed, raising a <code>ZeroDivisionError</code> with a clear message.
+            </li>
+            <li>
+                Invalid scaling constant (\(C \leq 0\)) is caught in the
+                <code>c()</code> method of <code>PLMInputs</code>, raising
+                <code>ValueError</code>.
+            </li>
+            <li>
+                Invalid hex input is caught in <code>hex_to_int</code>, raising
+                <code>Exception</code>.
+            </li>
+        </ul>
+
+        <h3>3.6.2 Test Infrastructure</h3>
+
+        <p>
+            The test suite uses <strong>pytest</strong> as the test runner. The
+            <code>conftest.py</code> file patches <code>sys.path</code> to ensure that the <code>plm_formalized</code> package is discoverable from the test directory without requiring a formal package installation:
+        </p>
+
+        <pre><code><span class="cm"># conftest.py -- Path setup for test discoverability</span>
+
+<span class="kw">import</span> sys
+<span class="kw">from</span> pathlib <span class="kw">import</span> Path
+
+<span class="cm"># Add the project root to sys.path so that</span>
+<span class="cm"># 'import plm_formalized' works from the test directory</span>
+sys.path.<span class="fn">insert</span>(<span class="nu">0</span>, <span class="fn">str</span>(<span class="ty">Path</span>(__file__).resolve().parent))</code></pre>
+
+        <p>
+            The <code>pyproject.toml</code> file defines the package metadata for <code>pip</code> installation. When installed via
+            <code>pip install -e .</code> (editable mode), the path manipulation in <code>conftest.py</code> becomes unnecessary. However, the
+            <code>conftest.py</code> approach ensures that tests work even in environments where the package has not been formally installed.
+        </p>
+
+        <h3>3.6.3 Continuous Integration (13 Workflows)</h3>
+
+        <p>
+            The repository enforces quality through <strong>thirteen GitHub
+            Actions workflows</strong>, each targeting a specific aspect of correctness:
+        </p>
+
+        <table>
+            <caption>Table 3.4. GitHub Actions CI/CD workflow inventory.</caption>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Workflow</th>
+                    <th>Purpose</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>1</td>
+                    <td>Docker CI</td>
+                    <td>Build and test inside a Docker container for environment isolation</td>
+                </tr>
+                <tr>
+                    <td>2</td>
+                    <td>QA Smoke Tests</td>
+                    <td>Quick sanity checks on core functionality</td>
+                </tr>
+                <tr>
+                    <td>3</td>
+                    <td>Security Scan</td>
+                    <td>Static analysis for known vulnerabilities and dependency audits</td>
+                </tr>
+                <tr>
+                    <td>4</td>
+                    <td>Version Validation</td>
+                    <td>Ensure version strings are consistent across all manifests</td>
+                </tr>
+                <tr>
+                    <td>5</td>
+                    <td>NP-Hard Validation</td>
+                    <td>Verify benchmark results against known problem instances</td>
+                </tr>
+                <tr>
+                    <td>6</td>
+                    <td>Unit Tests (Python)</td>
+                    <td>Full pytest suite for the Python implementation</td>
+                </tr>
+                <tr>
+                    <td>7</td>
+                    <td>Unit Tests (Ruby)</td>
+                    <td>MiniTest suite for the Ruby implementation</td>
+                </tr>
+                <tr>
+                    <td>8</td>
+                    <td>Cross-Language Parity</td>
+                    <td>Compare Python and Ruby outputs digit-by-digit</td>
+                </tr>
+                <tr>
+                    <td>9</td>
+                    <td>Determinism Regression</td>
+                    <td>Run StatefulPLM determinism tests with multiple seeds</td>
+                </tr>
+                <tr>
+                    <td>10</td>
+                    <td>Quantum Validation</td>
+                    <td>Verify Cirq circuit outputs against theoretical predictions</td>
+                </tr>
+                <tr>
+                    <td>11</td>
+                    <td>Linting and Formatting</td>
+                    <td>Enforce code style (flake8, black, isort)</td>
+                </tr>
+                <tr>
+                    <td>12</td>
+                    <td>Type Checking</td>
+                    <td>Static type analysis (mypy) for the Python codebase</td>
+                </tr>
+                <tr>
+                    <td>13</td>
+                    <td>Benchmark Reproducibility</td>
+                    <td>Re-run benchmarks and compare against baseline results</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>3.6.4 Git Hooks and Access Control</h3>
+
+        <p>
+            Beyond CI workflows, the repository enforces quality at the
+            <em>commit</em> level through Git hooks:
+        </p>
+
+        <ul>
+            <li>
+                <strong>Pre-commit hook:</strong> Validates commit message format, runs a minimal lint check, and verifies the author email address.
+            </li>
+            <li>
+                <strong>Pre-push hook:</strong> Runs the full test suite before allowing a push to the remote repository.
+            </li>
+            <li>
+                <strong>Author restriction:</strong> Only the email address
+                <code>networkarchetype@gmail.com</code> is permitted to commit. This is enforced both by the pre-commit hook locally and by CI policy on the remote. This single-author restriction ensures a clear chain of provenance for all code changes.
+            </li>
+        </ul>
+
+        <div class="evidence-card">
+            <div class="evidence-label">
+                Evidence G: CI/CD and Reproducibility
+            </div>
+            <p>
+                The thirteen GitHub Actions workflows run automatically on every commit and pull request. Failures block merging to the main branch. Combined with Git hooks that enforce format and authorship, this pipeline ensures that every version of the codebase in
+                the repository history has passed all quality gates.
+            </p>
+            <span class="verdict pass">VERIFIED</span>
+        </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- 3.7 KNOWN ISSUES (BUG REPORT)                                 -->
+    <!-- ============================================================ -->
+    <section id="s3-7">
+        <h2>3.7 Known Issues (Bug Report)</h2>
+
+        <p>
+            Transparency is a core value of this project. During the independent code review conducted in 2026, three issues were identified. We document them here with full severity assessments, root cause analysis, and mitigation status.
+        </p>
+
+        <h3>Bug 1: <code>run_plm.py</code> Import Failure</h3>
+
+        <div class="evidence-card">
+            <div class="evidence-label">
+                BUG-001: Missing sys.path Setup in run_plm.py
+            </div>
+
+            <table>
+                <tbody>
+                    <tr>
+                        <td><strong>Severity</strong></td>
+                        <td><span class="badge badge-skip">MEDIUM</span></td>
+                    </tr>
+                    <tr>
+                        <td><strong>File</strong></td>
+                        <td><code>run_plm.py</code></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Symptom</strong></td>
+                        <td><code>ModuleNotFoundError: No module named 'plm_formalized'</code></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Root Cause</strong></td>
+                        <td>
+                            The script attempts to import from
+                            <code>plm_formalized</code> but does not add the project root to <code>sys.path</code>. Under
+                            <code>pytest</code>, the <code>conftest.py</code> file handles this path setup, but
+                            <code>run_plm.py</code> is intended to be run standalone.
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>Impact</strong></td>
+                        <td>
+                            The script cannot be executed directly via
+                            <code>python run_plm.py</code> from the project root unless the package is pip-installed or the user manually sets <code>PYTHONPATH</code>.
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>Mitigation</strong></td>
+                        <td>
+                            Add <code>sys.path.insert(0, ...)</code> at the top of <code>run_plm.py</code>, or instruct users to run
+                            <code>pip install -e .</code> first. The CI pipeline is unaffected because tests go through
+                            <code>conftest.py</code>.
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+            <span class="verdict info">DOCUMENTED</span>
+        </div>
+
+        <h3>Bug 2: Root-Level <code>plm.rb</code> Syntax Errors</h3>
+
+        <div class="evidence-card">
+            <div class="evidence-label">
+                BUG-002: Multiple Syntax and Logic Errors in Root plm.rb
+            </div>
+
+            <table>
+                <tbody>
+                    <tr>
+                        <td><strong>Severity</strong></td>
+                        <td><span class="badge badge-fail">HIGH</span></td>
+                    </tr>
+                    <tr>
+                        <td><strong>File</strong></td>
+                        <td><code>plm.rb</code> (root-level, original draft)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Errors Found</strong></td>
+                        <td>
+                            <ol>
+                                <li>
+                                    <strong>Typo:</strong> <code>labmda</code> instead of <code>lambda</code>. This causes a <code>NameError</code> at runtime.
+                                </li>
+                                <li>
+                                    <strong>Invalid constructor:</strong>
+                                    <code>Math::PI.new</code> is not valid Ruby.
+                                    <code>Math::PI</code> is a Float constant, not a class. <code>.new</code> cannot be called on it.
+                                </li>
+                                <li>
+                                    <strong>Undefined variable:</strong> Reference to variable <code>rs</code> which is never defined, causing a
+                                    <code>NameError</code>.
+                                </li>
+                                <li>
+                                    <strong>Bare Unicode reference:</strong> A bare <code>&mu;</code> (Unicode mu character) appears in the source, which is not a valid Ruby identifier in most Ruby versions and configurations.
+                                </li>
+                            </ol>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>Root Cause</strong></td>
+                        <td>
+                            This file is the <em>original draft</em> written before the formalisation effort. It was never updated to match the canonical implementation.
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>Impact</strong></td>
+                        <td>
+                            The root-level <code>plm.rb</code> cannot be executed. Any attempt to <code>require</code> or <code>load</code> it will fail with syntax errors.
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>Mitigation</strong></td>
+                        <td>
+                            The <strong>canonical, correct implementation</strong> is located at
+                            <code>Code_core_3/plm-formalized/ruby/plm.rb</code>. All CI workflows and parity tests reference this path. The root-level file should either be removed or prominently marked as deprecated.
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+            <span class="verdict fail">KNOWN DEFECT</span>
+        </div>
+
+        <p>
+            For reference, the specific defective lines in the root-level
+            <code>plm.rb</code> are:
+        </p>
+
+        <pre><code><span class="cm"># Root-level plm.rb -- DEFECTIVE (original draft)</span>
+<span class="cm"># These lines contain errors and must NOT be used.</span>
+
+<span class="cm"># Error 1: Typo "labmda" (should be "lambda")</span>
+result <span class="op">=</span> pi <span class="op">*</span> labmda <span class="op">/</span> mu       <span class="cm"># NameError: undefined local variable 'labmda'</span>
+
+<span class="cm"># Error 2: Invalid constructor call</span>
+pi_val <span class="op">=</span> <span class="ty">Math::PI</span>.<span class="fn">new</span>          <span class="cm"># NoMethodError: Float has no .new method</span>
+
+<span class="cm"># Error 3: Undefined variable</span>
+output <span class="op">=</span> rs <span class="op">*</span> factor            <span class="cm"># NameError: undefined local variable 'rs'</span>
+
+<span class="cm"># Error 4: Bare Unicode (invalid identifier)</span>
+denominator <span class="op">=</span> <span class="op">&mu;</span> <span class="op">*</span> c_val       <span class="cm"># SyntaxError or NameError depending on Ruby version</span></code></pre>
+
+        <h3>Bug 3: Package Not Pip-Installed</h3>
+
+        <div class="evidence-card">
+            <div class="evidence-label">
+                BUG-003: Reliance on conftest.py Path Manipulation
+            </div>
+
+            <table>
+                <tbody>
+                    <tr>
+                        <td><strong>Severity</strong></td>
+                        <td><span class="badge badge-pass">LOW</span></td>
+                    </tr>
+                    <tr>
+                        <td><strong>File</strong></td>
+                        <td><code>conftest.py</code>, <code>pyproject.toml</code></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Symptom</strong></td>
+                        <td>
+                            The package works under <code>pytest</code> (because
+                            <code>conftest.py</code> manipulates
+                            <code>sys.path</code>) but may fail when imported from other contexts.
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>Root Cause</strong></td>
+                        <td>
+                            The package is not installed into the Python environment via <code>pip install -e .</code> (editable mode), despite having a valid
+                            <code>pyproject.toml</code>.
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>Impact</strong></td>
+                        <td>
+                            Low. The <code>conftest.py</code> workaround is effective for all test scenarios. The issue only manifests when attempting to import
+                            <code>plm_formalized</code> from scripts outside the test framework.
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>Mitigation</strong></td>
+                        <td>
+                            Run <code>pip install -e .</code> from the project root. This registers the package with pip, making it importable from any context. The
+                            <code>conftest.py</code> workaround can then be removed.
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+            <span class="verdict info">DOCUMENTED</span>
+        </div>
+
+        <h3>3.7.1 Bug Summary</h3>
+
+        <table>
+            <caption>Table 3.5. Summary of known issues.</caption>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Description</th>
+                    <th>Severity</th>
+                    <th>Affects CI?</th>
+                    <th>Affects Correctness?</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>BUG-001</td>
+                    <td><code>run_plm.py</code> import failure (missing sys.path)</td>
+                    <td><span class="badge badge-skip">MEDIUM</span></td>
+                    <td>No</td>
+                    <td>No (tests pass via conftest.py)</td>
+                </tr>
+                <tr>
+                    <td>BUG-002</td>
+                    <td>Root <code>plm.rb</code> syntax errors (typos, invalid API calls)</td>
+                    <td><span class="badge badge-fail">HIGH</span></td>
+                    <td>No (CI uses canonical path)</td>
+                    <td>No (canonical implementation is correct)</td>
+                </tr>
+                <tr>
+                    <td>BUG-003</td>
+                    <td>Package not pip-installed (conftest.py workaround)</td>
+                    <td><span class="badge badge-pass">LOW</span></td>
+                    <td>No</td>
+                    <td>No</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <p>
+            Importantly, <strong>none of these bugs affect the mathematical
+            correctness of the PLM implementation</strong>. BUG-001 and BUG-003 are purely ergonomic issues affecting standalone script execution. BUG-002 affects only the deprecated root-level Ruby file, which is not used by any test or CI workflow.
+            The canonical implementations in both Python and Ruby are correct and verified.
+        </p>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- 3.8 INTEGRATION SUMMARY                                       -->
+    <!-- ============================================================ -->
+    <section id="s3-8">
+        <h2>3.8 Integration Summary</h2>
+
+        <p>
+            This chapter has presented the computational implementation of PLM across four architectural layers. We summarise the key technical contributions:
+        </p>
+
+        <ol>
+            <li>
+                <strong>Core model</strong> (<code>model.py</code>): Pure mathematical functions with 80-digit precision, frozen dataclasses for immutability, and comprehensive guard clauses for domain validation.
+            </li>
+            <li>
+                <strong>Ruby mirror</strong> (<code>plm.rb</code>): Independent implementation with structural 1:1 correspondence, enabling cross-language parity verification.
+            </li>
+            <li>
+                <strong>Stateful machine</strong> (<code>stateful.py</code>): Strategy-pattern-based time-series evolution with formally proven and empirically verified determinism.
+            </li>
+            <li>
+                <strong>Software quality</strong>: Thirteen CI workflows, Git hooks, frozen dataclasses, and systematic guard clauses ensure that the implementation faithfully represents the mathematical framework.
+            </li>
+        </ol>
+
+        <p>
+            The complete mathematical expression implemented by the codebase is:
+        </p>
+
+        \[ S(t) \;=\; \frac{\bigl(\pi \cdot Y(t)\bigr)\, \bigl(\lambda \cdot X(t)\bigr)}{\mu \cdot C} \quad\text{where}\quad X(t+1) = X(t) + 1,\quad t \in \mathbb{Z}_{\geq 0} \]
+
+        <p>
+            In the next chapter, we present the full empirical verification data: 80-digit precision comparisons across all six theorems, determinism trajectories for the stateful machine, and cross-language parity test results.
+        </p>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- PAGE NAVIGATION                                               -->
+    <!-- ============================================================ -->
+    <nav class="page-nav" aria-label="Chapter navigation">
+        <a href="chapter2.html" aria-label="Previous chapter">&larr; Previous: Chapter 2: Mathematical Framework</a>
+        <a href="index.html">Table of Contents</a>
+        <a href="chapter4.html" aria-label="Next chapter">Next: Chapter 4: Empirical Verification &rarr;</a>
+    </nav>
+
+    <!-- ============================================================ -->
+    <!-- FOOTER                                                        -->
+    <!-- ============================================================ -->
+    <footer>
+        <p>&copy; 2014&ndash;2026 Joshua Wyatt Harris (NetworkArchetype). Licensed under Apache 2.0.</p>
+    </footer>
+
+</body>
+
+</html>

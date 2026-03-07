@@ -1,0 +1,720 @@
+/* ============================================================
+   PLM Academic Thesis -- Stylesheet
+   Pi-Lambda-Mu: A Formalized Mathematical Constant
+   Author: Joshua Wyatt Harris (NetworkArchetype)
+   Reviewed & Compiled: 2026
+   ============================================================ */
+
+
+/* --- Reset & Base Typography --- */
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+:root {
+    --font-serif: "Palatino Linotype", "Book Antiqua", Palatino, "Times New Roman", serif;
+    --font-sans: "Segoe UI", Helvetica, Arial, sans-serif;
+    --font-mono: "Cascadia Code", "Fira Code", "Consolas", "Courier New", monospace;
+    --color-bg: #fefefe;
+    --color-text: #1a1a1a;
+    --color-accent: #1a3c6e;
+    --color-accent-light: #2a5cae;
+    --color-border: #c0c0c0;
+    --color-light-bg: #f4f6fa;
+    --color-success: #1a7a3a;
+    --color-error: #9a1a1a;
+    --color-warn: #8a6e1a;
+    --color-theorem-bg: #eef3fb;
+    --color-proof-bg: #f9fdf9;
+    --color-definition-bg: #fef9ee;
+    --color-layman-bg: #f0f7f0;
+    --max-width: 960px;
+    --page-padding: 2rem;
+}
+
+html {
+    font-size: 17px;
+    scroll-behavior: smooth;
+}
+
+body {
+    font-family: var(--font-serif);
+    color: var(--color-text);
+    background: var(--color-bg);
+    line-height: 1.75;
+    max-width: var(--max-width);
+    margin: 0 auto;
+    padding: var(--page-padding);
+    padding-bottom: 6rem;
+}
+
+
+/* --- Headings --- */
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+    font-family: var(--font-sans);
+    color: var(--color-accent);
+    margin-top: 2.5rem;
+    margin-bottom: 0.8rem;
+    line-height: 1.3;
+}
+
+h1 {
+    font-size: 2.2rem;
+    border-bottom: 3px solid var(--color-accent);
+    padding-bottom: 0.5rem;
+}
+
+h2 {
+    font-size: 1.7rem;
+    border-bottom: 1px solid var(--color-border);
+    padding-bottom: 0.3rem;
+}
+
+h3 {
+    font-size: 1.35rem;
+}
+
+h4 {
+    font-size: 1.15rem;
+}
+
+
+/* --- Paragraphs & Links --- */
+
+p {
+    margin-bottom: 1rem;
+    text-align: justify;
+    hyphens: auto;
+}
+
+a {
+    color: var(--color-accent-light);
+    text-decoration: none;
+    border-bottom: 1px dotted var(--color-accent-light);
+}
+
+a:hover {
+    color: var(--color-accent);
+    border-bottom-style: solid;
+}
+
+
+/* --- Title Page --- */
+
+.title-page {
+    text-align: center;
+    padding: 4rem 1rem;
+    min-height: 85vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+.title-page h1 {
+    font-size: 2.8rem;
+    border: none;
+    margin-bottom: 0.3rem;
+    letter-spacing: 0.05em;
+}
+
+.title-page .subtitle {
+    font-size: 1.4rem;
+    font-style: italic;
+    color: #555;
+    margin-bottom: 2rem;
+}
+
+.title-page .author {
+    font-size: 1.2rem;
+    margin-bottom: 0.5rem;
+}
+
+.title-page .affiliation {
+    font-size: 1rem;
+    color: #666;
+    margin-bottom: 0.3rem;
+}
+
+.title-page .date {
+    font-size: 1rem;
+    color: #888;
+    margin-top: 1rem;
+}
+
+.title-page .version-badge {
+    display: inline-block;
+    background: var(--color-accent);
+    color: #fff;
+    padding: 0.3rem 1rem;
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    font-size: 0.9rem;
+    margin-top: 1rem;
+}
+
+
+/* --- Abstract --- */
+
+.abstract {
+    background: var(--color-light-bg);
+    border-left: 4px solid var(--color-accent);
+    padding: 1.5rem 2rem;
+    margin: 2rem 0;
+    font-style: italic;
+}
+
+.abstract h2 {
+    border: none;
+    margin-top: 0;
+    font-style: normal;
+}
+
+
+/* --- Navigation --- */
+
+nav.chapter-nav {
+    background: var(--color-light-bg);
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    padding: 1.5rem 2rem;
+    margin: 2rem 0;
+}
+
+nav.chapter-nav h2 {
+    margin-top: 0;
+    border: none;
+    font-size: 1.3rem;
+}
+
+nav.chapter-nav ol {
+    padding-left: 1.5rem;
+}
+
+nav.chapter-nav li {
+    margin-bottom: 0.4rem;
+}
+
+nav.chapter-nav li a {
+    font-family: var(--font-sans);
+    font-size: 0.95rem;
+}
+
+
+/* Bottom navigation */
+
+.page-nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 0;
+    margin-top: 3rem;
+    border-top: 2px solid var(--color-border);
+    font-family: var(--font-sans);
+    font-size: 0.9rem;
+}
+
+.page-nav a {
+    padding: 0.4rem 1rem;
+    background: var(--color-light-bg);
+    border-radius: 4px;
+    border-bottom: none;
+}
+
+.page-nav a:hover {
+    background: var(--color-accent);
+    color: #fff;
+}
+
+
+/* --- Theorem / Proof / Definition Environments --- */
+
+.theorem,
+.proof,
+.definition,
+.lemma,
+.corollary,
+.remark {
+    border-radius: 6px;
+    padding: 1.2rem 1.5rem;
+    margin: 1.5rem 0;
+    border-left: 4px solid;
+}
+
+.theorem {
+    background: var(--color-theorem-bg);
+    border-color: var(--color-accent);
+}
+
+.proof {
+    background: var(--color-proof-bg);
+    border-color: var(--color-success);
+}
+
+.definition {
+    background: var(--color-definition-bg);
+    border-color: var(--color-warn);
+}
+
+.lemma {
+    background: #f5f0ff;
+    border-color: #7b5ea7;
+}
+
+.corollary {
+    background: #fff5f0;
+    border-color: #c07040;
+}
+
+.remark {
+    background: #f5f5f5;
+    border-color: #888;
+}
+
+.theorem .label,
+.proof .label,
+.definition .label,
+.lemma .label,
+.corollary .label,
+.remark .label {
+    font-family: var(--font-sans);
+    font-weight: 700;
+    font-size: 1.05rem;
+    display: block;
+    margin-bottom: 0.5rem;
+}
+
+.proof .label::after {
+    content: "";
+}
+
+.proof .qed {
+    text-align: right;
+    font-size: 1.2rem;
+    margin-top: 0.5rem;
+}
+
+
+/* --- Layman Boxes --- */
+
+.layman-box {
+    background: var(--color-layman-bg);
+    border: 2px dashed #4a9a4a;
+    border-radius: 8px;
+    padding: 1.2rem 1.5rem;
+    margin: 1.5rem 0;
+}
+
+.layman-box .label {
+    font-family: var(--font-sans);
+    font-weight: 700;
+    color: #2a7a2a;
+    margin-bottom: 0.5rem;
+    display: block;
+}
+
+
+/* --- Code Blocks --- */
+
+pre {
+    background: #1e1e2e;
+    color: #cdd6f4;
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    padding: 1.2rem 1.5rem;
+    border-radius: 6px;
+    overflow-x: auto;
+    margin: 1rem 0;
+    line-height: 1.55;
+}
+
+code {
+    font-family: var(--font-mono);
+    font-size: 0.88em;
+    background: #e8ecf2;
+    padding: 0.15rem 0.4rem;
+    border-radius: 3px;
+}
+
+pre code {
+    background: none;
+    padding: 0;
+    font-size: 1em;
+}
+
+
+/* Syntax highlighting */
+
+.kw {
+    color: #cba6f7;
+}
+
+
+/* keyword */
+
+.fn {
+    color: #89b4fa;
+}
+
+
+/* function */
+
+.st {
+    color: #a6e3a1;
+}
+
+
+/* string */
+
+.cm {
+    color: #6c7086;
+    font-style: italic;
+}
+
+
+/* comment */
+
+.nu {
+    color: #fab387;
+}
+
+
+/* number */
+
+.op {
+    color: #94e2d5;
+}
+
+
+/* operator */
+
+.ty {
+    color: #f9e2af;
+}
+
+
+/* type */
+
+
+/* --- Tables --- */
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1.5rem 0;
+    font-size: 0.95rem;
+}
+
+th,
+td {
+    padding: 0.6rem 0.8rem;
+    border: 1px solid var(--color-border);
+    text-align: left;
+}
+
+th {
+    background: var(--color-accent);
+    color: #fff;
+    font-family: var(--font-sans);
+    font-weight: 600;
+}
+
+tr:nth-child(even) {
+    background: var(--color-light-bg);
+}
+
+caption {
+    font-family: var(--font-sans);
+    font-size: 0.9rem;
+    font-style: italic;
+    color: #555;
+    padding: 0.5rem 0;
+    caption-side: bottom;
+}
+
+
+/* --- Figures --- */
+
+figure {
+    margin: 2rem 0;
+    text-align: center;
+}
+
+figcaption {
+    font-family: var(--font-sans);
+    font-size: 0.9rem;
+    font-style: italic;
+    color: #555;
+    margin-top: 0.5rem;
+}
+
+
+/* --- SVG Charts --- */
+
+.chart-container {
+    margin: 2rem auto;
+    max-width: 700px;
+}
+
+svg text {
+    font-family: var(--font-sans);
+}
+
+
+/* --- Evidence Cards --- */
+
+.evidence-card {
+    background: #fff;
+    border: 2px solid var(--color-accent);
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin: 1.5rem 0;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.evidence-card .evidence-label {
+    font-family: var(--font-sans);
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: var(--color-accent);
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.evidence-card .verdict {
+    display: inline-block;
+    font-family: var(--font-sans);
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 0.2rem 0.7rem;
+    border-radius: 3px;
+    margin-top: 0.8rem;
+}
+
+.verdict.pass {
+    background: #d4edda;
+    color: #155724;
+}
+
+.verdict.fail {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.verdict.info {
+    background: #d1ecf1;
+    color: #0c5460;
+}
+
+
+/* --- Status Badges --- */
+
+.badge {
+    display: inline-block;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    padding: 0.15rem 0.6rem;
+    border-radius: 3px;
+    font-weight: 600;
+}
+
+.badge-pass {
+    background: #d4edda;
+    color: #155724;
+}
+
+.badge-fail {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.badge-skip {
+    background: #fff3cd;
+    color: #856404;
+}
+
+
+/* --- Blockquotes --- */
+
+blockquote {
+    border-left: 3px solid var(--color-accent);
+    margin: 1rem 0;
+    padding: 0.5rem 1.5rem;
+    color: #444;
+    font-style: italic;
+}
+
+
+/* --- Lists --- */
+
+ul,
+ol {
+    margin: 0.5rem 0 1rem 1.5rem;
+}
+
+li {
+    margin-bottom: 0.3rem;
+}
+
+
+/* --- Horizontal Rules --- */
+
+hr {
+    border: none;
+    border-top: 1px solid var(--color-border);
+    margin: 2rem 0;
+}
+
+
+/* --- Math display (MathJax) --- */
+
+.math-display {
+    overflow-x: auto;
+    padding: 0.5rem 0;
+    margin: 1rem 0;
+}
+
+
+/* --- Footnotes --- */
+
+.footnote {
+    font-size: 0.85rem;
+    color: #666;
+    border-top: 1px solid var(--color-border);
+    padding-top: 1rem;
+    margin-top: 2rem;
+}
+
+
+/* --- Print --- */
+
+@media print {
+    body {
+        max-width: 100%;
+        padding: 0;
+        font-size: 11pt;
+    }
+    .page-nav,
+    nav.chapter-nav {
+        display: none;
+    }
+    pre {
+        border: 1px solid #ccc;
+        background: #f5f5f5;
+        color: #000;
+    }
+    h1,
+    h2,
+    h3 {
+        color: #000;
+    }
+    a {
+        color: #000;
+        border: none;
+    }
+    .evidence-card {
+        box-shadow: none;
+        border: 1px solid #000;
+    }
+    .theorem,
+    .proof,
+    .definition {
+        border-left-width: 3px;
+    }
+}
+
+
+/* --- Responsive --- */
+
+@media (max-width: 768px) {
+    html {
+        font-size: 15px;
+    }
+    body {
+        padding: 1rem;
+    }
+    .title-page h1 {
+        font-size: 2rem;
+    }
+    pre {
+        font-size: 0.78rem;
+        padding: 0.8rem;
+    }
+    .page-nav {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+}
+
+
+/* --- Animations for interactive elements --- */
+
+.expandable-header {
+    cursor: pointer;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.expandable-header::before {
+    content: "\25B6";
+    font-size: 0.7em;
+    transition: transform 0.2s;
+}
+
+.expandable-header.open::before {
+    transform: rotate(90deg);
+}
+
+.expandable-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease-out;
+}
+
+.expandable-content.open {
+    max-height: 5000px;
+}
+
+
+/* --- Tooltip --- */
+
+.tooltip {
+    position: relative;
+    border-bottom: 1px dotted var(--color-accent);
+    cursor: help;
+}
+
+.tooltip .tooltiptext {
+    visibility: hidden;
+    background: #333;
+    color: #fff;
+    font-size: 0.8rem;
+    font-family: var(--font-sans);
+    padding: 0.4rem 0.8rem;
+    border-radius: 4px;
+    position: absolute;
+    bottom: 125%;
+    left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    z-index: 10;
+}
+
+.tooltip:hover .tooltiptext {
+    visibility: visible;
+}

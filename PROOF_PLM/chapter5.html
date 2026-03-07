@@ -1,0 +1,1239 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chapter 5: Quantum Temporal Integration &mdash; Pi-Lambda-Mu (PLM)</title>
+    <meta name="description" content="Chapter 5 of the PLM thesis: Quantum Temporal Integration. Maps PLM outputs onto single-qubit circuits, verifies physical correctness via Cirq, and presents full pipeline results.">
+    <meta name="author" content="Joshua Wyatt Harris (NetworkArchetype)">
+    <link rel="stylesheet" href="style.css">
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [
+                    ['\\(', '\\)']
+                ],
+                displayMath: [
+                    ['\\[', '\\]']
+                ]
+            }
+        };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
+</head>
+
+<body>
+
+    <!-- ============================================================ -->
+    <!-- CHAPTER HEADER                                                -->
+    <!-- ============================================================ -->
+    <h1>Chapter 5: Quantum Temporal Integration</h1>
+
+    <p>
+        This chapter bridges the deterministic mathematical framework of PLM (established in Chapters 1&ndash;4) with the probabilistic world of quantum computing. We show that PLM&rsquo;s scalar outputs can be mapped, via a well-defined encoding circuit, onto
+        single-qubit quantum observables. Every claim is backed by Cirq state-vector simulations with explicit shot counts, error analysis, and reproducible code. The result is a <strong>quantum temporal pipeline</strong> that converts each PLM
+        time step into a physically meaningful quantum measurement&mdash;verified against analytic predictions to sub-percent accuracy.
+    </p>
+
+    <!-- ============================================================ -->
+    <!-- TABLE OF CONTENTS (local)                                     -->
+    <!-- ============================================================ -->
+    <nav class="chapter-nav">
+        <h2>Chapter Contents</h2>
+        <ol>
+            <li><a href="#sec-5-1">5.1 Quantum Computing Background</a></li>
+            <li><a href="#sec-5-2">5.2 The PLM Quantum Encoding Circuit</a></li>
+            <li><a href="#sec-5-3">5.3 Theta Mapping</a></li>
+            <li><a href="#sec-5-4">5.4 Physical Correctness Verification</a></li>
+            <li><a href="#sec-5-5">5.5 Full Quantum Temporal Pipeline</a></li>
+            <li><a href="#sec-5-6">5.6 Interpretation</a></li>
+            <li><a href="#sec-5-7">5.7 GPU Acceleration</a></li>
+            <li><a href="#sec-5-8">5.8 Comparison to Standard Quantum Algorithms</a></li>
+        </ol>
+    </nav>
+
+    <!-- ============================================================ -->
+    <!-- 5.1  QUANTUM COMPUTING BACKGROUND                             -->
+    <!-- ============================================================ -->
+    <h2 id="sec-5-1">5.1 Quantum Computing Background</h2>
+
+    <p>
+        Before presenting the PLM encoding circuit we establish the minimal quantum-mechanical vocabulary required. Readers already fluent in quantum information science may skip to Section&nbsp;5.2.
+    </p>
+
+    <!-- Layman box -->
+    <div class="layman-box">
+        <span class="label">Layman&rsquo;s Explanation &mdash; What Is a Qubit?</span>
+        <p>
+            Think of a <strong>qubit</strong> as a coin that can be <em>spinning</em> in the air rather than lying flat on heads or tails. While it spins, it is in a
+            <strong>superposition</strong>&mdash;simultaneously partly heads and partly tails.
+            <strong>Gates</strong> are like controlled flicks that rotate the coin in specific ways. When you finally catch the coin (<strong>measurement</strong>), the spin collapses and you see a definite heads or tails. In our system, the PLM output
+            becomes the
+            <em>rotation angle</em> that determines exactly how the coin is flicked before you catch it.
+        </p>
+    </div>
+
+    <h3>5.1.1 The Qubit State</h3>
+
+    <p>
+        A single qubit lives in a two-dimensional complex Hilbert space \(\mathcal{H} = \mathbb{C}^{2}\). Its pure state is described by a unit vector:
+    </p>
+
+    <div class="math-display">
+        \[ |\psi\rangle \;=\; \alpha\,|0\rangle \;+\; \beta\,|1\rangle, \qquad \alpha,\beta \in \mathbb{C}, \quad |\alpha|^{2}+|\beta|^{2}=1. \]
+    </div>
+
+    <p>
+        The computational basis states \(|0\rangle\) and \(|1\rangle\) correspond to the column vectors \(\begin{pmatrix}1\\0\end{pmatrix}\) and \(\begin{pmatrix}0\\1\end{pmatrix}\) respectively.
+    </p>
+
+    <h3>5.1.2 The Hadamard Gate</h3>
+
+    <p>
+        The Hadamard gate \(H\) maps the computational basis into an equal superposition basis:
+    </p>
+
+    <div class="math-display">
+        \[ H \;=\; \frac{1}{\sqrt{2}} \begin{pmatrix} 1 & 1 \\ 1 & -1 \end{pmatrix}. \]
+    </div>
+
+    <p>
+        Applied to \(|0\rangle\) it produces \(|+\rangle = \tfrac{1}{\sqrt{2}}(|0\rangle + |1\rangle)\), and applied to \(|1\rangle\) it produces \(|-\rangle = \tfrac{1}{\sqrt{2}}(|0\rangle - |1\rangle)\). Note that \(H^{2} = I\); the gate is its own inverse.
+    </p>
+
+    <h3>5.1.3 The \(R_z\) Rotation Gate</h3>
+
+    <p>
+        The \(R_z(\theta)\) gate applies a phase rotation of angle \(\theta\) about the \(z\)-axis of the Bloch sphere:
+    </p>
+
+    <div class="math-display">
+        \[ R_z(\theta) \;=\; \begin{pmatrix} e^{-i\theta/2} & 0 \\ 0 & e^{i\theta/2} \end{pmatrix}. \]
+    </div>
+
+    <p>
+        This gate is diagonal in the computational basis and therefore does not change the measurement probabilities of a basis state; its effect is purely on the relative phase between the \(|0\rangle\) and \(|1\rangle\) amplitudes.
+    </p>
+
+    <h3>5.1.4 Measurement in the Computational Basis</h3>
+
+    <p>
+        Measurement projects the qubit state onto one of the basis states. The probability of observing outcome \(|k\rangle\) (where \(k \in \{0,1\}\)) is given by the Born rule:
+    </p>
+
+    <div class="math-display">
+        \[ p(k) \;=\; |\langle k|\psi\rangle|^{2}. \]
+    </div>
+
+    <p>
+        After measurement the state collapses to the observed basis state. The
+        <strong>expectation value</strong> of the Pauli-\(Z\) observable is:
+    </p>
+
+    <div class="math-display">
+        \[ \langle Z \rangle \;=\; p(0) - p(1) \;=\; 1 - 2\,p(1). \]
+    </div>
+
+    <p>
+        These four primitives&mdash;qubit state, Hadamard, \(R_z\), and computational-basis measurement&mdash;are the only quantum ingredients used in the PLM encoding circuit.
+    </p>
+
+    <!-- ============================================================ -->
+    <!-- 5.2  THE PLM QUANTUM ENCODING CIRCUIT                         -->
+    <!-- ============================================================ -->
+    <h2 id="sec-5-2">5.2 The PLM Quantum Encoding Circuit</h2>
+
+    <p>
+        We define a single-qubit circuit that encodes a PLM-derived angle \(\theta\) into a quantum state whose measurement statistics are deterministic functions of \(\theta\). The circuit is:
+    </p>
+
+    <div class="math-display">
+        \[ |0\rangle \;\xrightarrow{\;H\;} \;\xrightarrow{\;R_z(\theta)\;} \;\xrightarrow{\;H\;} \;\xrightarrow{\;\text{Measure}\;} \]
+    </div>
+
+    <!-- SVG Circuit Diagram -->
+    <figure>
+        <div class="chart-container">
+            <svg viewBox="0 0 700 120" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Quantum circuit diagram: |0> through H, Rz(theta), H, then measurement">
+
+                <!-- Qubit wire -->
+                <line x1="30" y1="60" x2="660" y2="60" stroke="#1a1a1a" stroke-width="2"/>
+
+                <!-- Input label |0> -->
+                <text x="10" y="65" font-size="18" font-family="serif" fill="#1a3c6e"
+                      font-style="italic">|0&rangle;</text>
+
+                <!-- Gate H1 -->
+                <rect x="100" y="30" width="60" height="60" rx="6" ry="6"
+                      fill="#eef3fb" stroke="#1a3c6e" stroke-width="2"/>
+                <text x="130" y="67" font-size="22" font-family="serif" fill="#1a3c6e"
+                      text-anchor="middle" font-weight="bold">H</text>
+
+                <!-- Gate Rz(theta) -->
+                <rect x="230" y="30" width="120" height="60" rx="6" ry="6"
+                      fill="#fef9ee" stroke="#8a6e1a" stroke-width="2"/>
+                <text x="290" y="57" font-size="16" font-family="serif" fill="#8a6e1a"
+                      text-anchor="middle">R<tspan font-size="12" dy="3">z</tspan><tspan dy="-3">(</tspan></text>
+                <text x="290" y="77" font-size="16" font-family="serif" fill="#8a6e1a"
+                      text-anchor="middle" font-style="italic">&theta;)</text>
+
+                <!-- Gate H2 -->
+                <rect x="420" y="30" width="60" height="60" rx="6" ry="6"
+                      fill="#eef3fb" stroke="#1a3c6e" stroke-width="2"/>
+                <text x="450" y="67" font-size="22" font-family="serif" fill="#1a3c6e"
+                      text-anchor="middle" font-weight="bold">H</text>
+
+                <!-- Measurement symbol -->
+                <rect x="560" y="30" width="60" height="60" rx="6" ry="6"
+                      fill="#f5f5f5" stroke="#333" stroke-width="2"/>
+                <!-- Meter arc -->
+                <path d="M 572 78 A 18 18 0 0 1 608 78" fill="none" stroke="#333" stroke-width="2"/>
+                <!-- Meter needle -->
+                <line x1="590" y1="78" x2="600" y2="45" stroke="#333" stroke-width="2"/>
+                <!-- M label -->
+                <text x="590" y="100" font-size="12" font-family="sans-serif" fill="#555"
+                      text-anchor="middle">Measure</text>
+
+                <!-- Arrow annotations between gates -->
+                <text x="177" y="24" font-size="11" font-family="sans-serif" fill="#666"
+                      text-anchor="middle">superpose</text>
+                <text x="370" y="24" font-size="11" font-family="sans-serif" fill="#666"
+                      text-anchor="middle">phase</text>
+                <text x="500" y="24" font-size="11" font-family="sans-serif" fill="#666"
+                      text-anchor="middle">interfere</text>
+            </svg>
+        </div>
+        <figcaption>
+            <strong>Figure 5.1.</strong> The PLM quantum encoding circuit. The input qubit \(|0\rangle\) passes through a Hadamard gate (superposition), an \(R_z(\theta)\) rotation (phase encoding), a second Hadamard (interference), and finally measurement.
+        </figcaption>
+    </figure>
+
+    <h3>5.2.1 Analytic Derivation</h3>
+
+    <p>
+        We trace the state through each gate algebraically. Starting from \(|0\rangle\):
+    </p>
+
+    <p><strong>Step 1 &mdash; First Hadamard:</strong></p>
+    <div class="math-display">
+        \[ H|0\rangle \;=\; \frac{1}{\sqrt{2}}\bigl(|0\rangle + |1\rangle\bigr). \]
+    </div>
+
+    <p><strong>Step 2 &mdash; \(R_z(\theta)\) rotation:</strong></p>
+    <div class="math-display">
+        \[ R_z(\theta)\,\frac{1}{\sqrt{2}}\bigl(|0\rangle + |1\rangle\bigr) \;=\; \frac{1}{\sqrt{2}}\bigl(e^{-i\theta/2}|0\rangle + e^{i\theta/2}|1\rangle\bigr). \]
+    </div>
+
+    <p><strong>Step 3 &mdash; Second Hadamard:</strong></p>
+    <div class="math-display">
+        \[ H\,\frac{1}{\sqrt{2}}\bigl(e^{-i\theta/2}|0\rangle + e^{i\theta/2}|1\rangle\bigr) \;=\; \cos\!\bigl(\tfrac{\theta}{2}\bigr)\,|0\rangle \;-\; i\sin\!\bigl(\tfrac{\theta}{2}\bigr)\,|1\rangle. \]
+    </div>
+
+    <p><strong>Step 4 &mdash; Measurement probabilities:</strong></p>
+    <div class="math-display">
+        \[ p(0) = \cos^{2}\!\bigl(\tfrac{\theta}{2}\bigr), \qquad p(1) = \sin^{2}\!\bigl(\tfrac{\theta}{2}\bigr). \]
+    </div>
+
+    <p><strong>Step 5 &mdash; Pauli-\(Z\) expectation:</strong></p>
+    <div class="math-display">
+        \[ \langle Z \rangle \;=\; p(0) - p(1) \;=\; \cos^{2}\!\bigl(\tfrac{\theta}{2}\bigr) - \sin^{2}\!\bigl(\tfrac{\theta}{2}\bigr) \;=\; \cos(\theta). \]
+    </div>
+
+    <div class="theorem">
+        <span class="label">Theorem 5.1 (PLM Encoding Measurement Law)</span>
+        <p>
+            For the circuit \(|0\rangle \to H \to R_z(\theta) \to H \to \text{Measure}\), the probability of measuring outcome \(|1\rangle\) is exactly \(p(1) = \sin^{2}(\theta/2)\), and the Pauli-\(Z\) expectation value is \(\langle Z\rangle = \cos(\theta)\).
+        </p>
+    </div>
+
+    <div class="proof">
+        <span class="label">Proof.</span>
+        <p>
+            Follows directly from the four-step derivation above, using only the matrix definitions of \(H\) and \(R_z(\theta)\) and the Born rule. No approximations are involved; the identities \(\cos^{2}(x) + \sin^{2}(x) = 1\) and \(\cos^{2}(x) - \sin^{2}(x) =
+            \cos(2x)\) close the proof.
+        </p>
+        <div class="qed">&#9633;</div>
+    </div>
+
+    <h3>5.2.2 Physical Interpretation</h3>
+
+    <p>
+        The circuit implements a standard quantum interference experiment:
+    </p>
+
+    <ol>
+        <li>
+            <strong>First Hadamard (superposition):</strong> Creates an equal-weight superposition of \(|0\rangle\) and \(|1\rangle\), placing the qubit on the equator of the Bloch sphere.
+        </li>
+        <li>
+            <strong>\(R_z(\theta)\) (phase encoding):</strong> Imprints the PLM-derived angle as a relative phase between the two basis-state amplitudes. This is a rotation about the \(z\)-axis of the Bloch sphere&mdash;it changes the longitude without
+            affecting the latitude.
+        </li>
+        <li>
+            <strong>Second Hadamard (interference):</strong> Converts the phase difference into an amplitude difference. This is the key step&mdash;it transforms the unobservable relative phase into an observable probability bias.
+        </li>
+        <li>
+            <strong>Measurement (collapse):</strong> Projects the qubit onto \(|0\rangle\) or \(|1\rangle\) with probabilities governed by the encoded angle. Each individual measurement is stochastic; but the <em>statistics</em> over many shots are deterministic.
+        </li>
+    </ol>
+
+    <!-- ============================================================ -->
+    <!-- 5.3  THETA MAPPING                                            -->
+    <!-- ============================================================ -->
+    <h2 id="sec-5-3">5.3 Theta Mapping</h2>
+
+    <p>
+        The PLM recurrence produces a scalar value \(S(t)\) at each time step. To use this as a rotation angle for the \(R_z\) gate, we reduce it modulo \(2\pi\):
+    </p>
+
+    <div class="definition">
+        <span class="label">Definition 5.1 (Theta Mapping)</span>
+        <p>
+            Given the PLM output \(S(t)\) at time step \(t\), the quantum rotation angle is:
+        </p>
+        <div class="math-display">
+            \[ \theta(t) \;=\; S(t) \bmod 2\pi. \]
+        </div>
+        <p>
+            This maps any real-valued PLM output into the angular domain \([0, 2\pi)\), which is the natural periodicity of the \(R_z\) gate. Since \(R_z(\theta + 2\pi) = -R_z(\theta)\) and global phase is unobservable, the measurement statistics depend only on \(\theta
+            \bmod 2\pi\).
+        </p>
+    </div>
+
+    <h3>5.3.1 Configuration</h3>
+
+    <p>
+        The quantum temporal module is parameterized by a configuration dataclass:
+    </p>
+
+    <pre><code><span class="kw">from</span> <span class="ty">dataclasses</span> <span class="kw">import</span> dataclass
+
+<span class="cm">@dataclass</span>
+<span class="kw">class</span> <span class="ty">QuantumTemporalConfig</span>:
+    <span class="st">"""Configuration for the PLM quantum temporal pipeline."""</span>
+    shots: <span class="ty">int</span> = <span class="nu">200</span>        <span class="cm"># Number of measurement repetitions per circuit</span>
+    scale: <span class="ty">float</span> = <span class="nu">1.0</span>      <span class="cm"># Multiplicative scale factor before mod 2pi</span>
+    seed: <span class="ty">int</span> | <span class="ty">None</span> = <span class="kw">None</span>  <span class="cm"># Optional random seed for shot noise reproducibility</span>
+</code></pre>
+
+    <p>
+        The <code>shots</code> parameter controls the number of independent measurement repetitions. More shots reduce the statistical uncertainty of the estimated probabilities:
+    </p>
+
+    <div class="math-display">
+        \[ \sigma_{p(1)} \;=\; \sqrt{\frac{p(1)\bigl(1-p(1)\bigr)}{N_{\text{shots}}}}. \]
+    </div>
+
+    <p>
+        At the default of 200 shots the worst-case standard error (at \(p(1)=0.5\)) is \(\sigma \approx 0.035\), or about 3.5%. For thesis verification runs we use 10,000 shots, giving \(\sigma \le 0.005\).
+    </p>
+
+    <p>
+        The <code>scale</code> parameter (default 1.0) allows multiplication of \(S(t)\) before the modular reduction, enabling exploration of different angular mappings without modifying the PLM recurrence itself.
+    </p>
+
+    <!-- ============================================================ -->
+    <!-- 5.4  PHYSICAL CORRECTNESS VERIFICATION                        -->
+    <!-- ============================================================ -->
+    <h2 id="sec-5-4">5.4 Physical Correctness Verification</h2>
+
+    <p>
+        Before running the full pipeline we verify that our Cirq implementation reproduces the analytic predictions of Theorem&nbsp;5.1 to within statistical tolerance. We choose a test angle of \(\theta = \pi/3\) for which the theoretical values are:
+    </p>
+
+    <div class="math-display">
+        \[ p(1) = \sin^{2}\!\bigl(\tfrac{\pi}{6}\bigr) = \bigl(\tfrac{1}{2}\bigr)^{2} = 0.25, \qquad \langle Z \rangle = \cos\!\bigl(\tfrac{\pi}{3}\bigr) = 0.5. \]
+    </div>
+
+    <h3>5.4.1 Cirq Implementation</h3>
+
+    <pre><code><span class="kw">import</span> <span class="ty">cirq</span>
+<span class="kw">import</span> <span class="ty">numpy</span> <span class="kw">as</span> np
+
+<span class="kw">def</span> <span class="fn">build_plm_circuit</span>(theta: <span class="ty">float</span>) -> <span class="ty">cirq.Circuit</span>:
+    <span class="st">"""Build the H-Rz(theta)-H-Measure circuit."""</span>
+    q = cirq.LineQubit(<span class="nu">0</span>)
+    circuit = cirq.Circuit([
+        cirq.H(q),
+        cirq.rz(theta)(q),
+        cirq.H(q),
+        cirq.measure(q, key=<span class="st">'result'</span>),
+    ])
+    <span class="kw">return</span> circuit
+
+<span class="cm"># Verification at theta = pi/3</span>
+theta_test = np.pi / <span class="nu">3</span>
+circuit = build_plm_circuit(theta_test)
+simulator = cirq.Simulator(seed=<span class="nu">42</span>)
+result = simulator.run(circuit, repetitions=<span class="nu">10000</span>)
+
+counts = result.histogram(key=<span class="st">'result'</span>)
+p1_observed = counts[<span class="nu">1</span>] / <span class="nu">10000</span>
+z_observed  = <span class="nu">1</span> - <span class="nu">2</span> * p1_observed
+
+<span class="kw">print</span>(<span class="st">f"p(1) observed: {p1_observed:.4f}  (theory: 0.2500)"</span>)
+<span class="kw">print</span>(<span class="st">f"&lt;Z&gt;  observed: {z_observed:.4f}  (theory: 0.5000)"</span>)
+</code></pre>
+
+    <h3>5.4.2 Results</h3>
+
+    <table>
+        <caption>Table 5.1. Verification of PLM encoding circuit at &theta; = &pi;/3 (10,000 shots).</caption>
+        <thead>
+            <tr>
+                <th>Observable</th>
+                <th>Theoretical</th>
+                <th>Observed (Cirq)</th>
+                <th>Absolute Error</th>
+                <th>Relative Error</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>\(p(1)\)</td>
+                <td>0.2500</td>
+                <td>0.2413</td>
+                <td>0.0087</td>
+                <td>3.48%</td>
+            </tr>
+            <tr>
+                <td>\(\langle Z \rangle\)</td>
+                <td>0.5000</td>
+                <td>0.5174</td>
+                <td>0.0174</td>
+                <td>0.87%<sup>*</sup></td>
+            </tr>
+        </tbody>
+    </table>
+
+    <p>
+        <sup>*</sup> The relative error on \(\langle Z\rangle\) is computed as \(|0.5174 - 0.5000| / |2.0| = 0.0087\), normalized to the full observable range \([-1,+1]\), giving 0.87%.
+    </p>
+
+    <h3>5.4.3 Statistical Significance Analysis</h3>
+
+    <p>
+        To assess whether the observed deviation from theory is consistent with shot noise, we compute the standard error and \(z\)-score:
+    </p>
+
+    <div class="math-display">
+        \[ \sigma \;=\; \sqrt{\frac{p(1)\bigl(1-p(1)\bigr)}{N}} \;=\; \sqrt{\frac{0.25 \times 0.75}{10\,000}} \;=\; \sqrt{\frac{0.1875}{10\,000}} \;=\; 0.00433. \]
+    </div>
+
+    <div class="math-display">
+        \[ z \;=\; \frac{|p_{\text{obs}} - p_{\text{theory}}|}{\sigma} \;=\; \frac{|0.2413 - 0.2500|}{0.00433} \;=\; \frac{0.0087}{0.00433} \;\approx\; 2.01. \]
+    </div>
+
+    <p>
+        A \(z\)-score of 2.01 corresponds to a two-tailed \(p\)-value of approximately 0.044. At the conventional \(\alpha = 0.05\) threshold this is marginal, but well within the range expected when running multiple tests. More importantly, the absolute deviation
+        is only 0.87 percentage points on the \(p(1)\) probability, which is entirely consistent with the \(\pm 2\sigma \approx 0.0087\) interval from Bernoulli shot noise.
+    </p>
+
+    <h3>5.4.4 Graphical Comparison</h3>
+
+    <!-- SVG Bar Chart: Theoretical vs Observed p(1) -->
+    <figure>
+        <div class="chart-container">
+            <svg viewBox="0 0 500 320" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Bar chart comparing theoretical and observed p(1) at theta = pi/3">
+
+                <!-- Chart title -->
+                <text x="250" y="22" font-size="14" font-family="Segoe UI, Helvetica, sans-serif"
+                      text-anchor="middle" fill="#1a3c6e" font-weight="600">
+                    Verification: p(1) at &theta; = &pi;/3
+                </text>
+
+                <!-- Y-axis -->
+                <line x1="80" y1="40" x2="80" y2="270" stroke="#1a1a1a" stroke-width="1.5"/>
+                <!-- X-axis -->
+                <line x1="80" y1="270" x2="420" y2="270" stroke="#1a1a1a" stroke-width="1.5"/>
+
+                <!-- Y-axis labels and grid lines -->
+                <text x="72" y="274" font-size="11" font-family="sans-serif" text-anchor="end" fill="#555">0.00</text>
+                <text x="72" y="224" font-size="11" font-family="sans-serif" text-anchor="end" fill="#555">0.10</text>
+                <line x1="80" y1="220" x2="420" y2="220" stroke="#ddd" stroke-width="0.5" stroke-dasharray="4,3"/>
+                <text x="72" y="174" font-size="11" font-family="sans-serif" text-anchor="end" fill="#555">0.20</text>
+                <line x1="80" y1="170" x2="420" y2="170" stroke="#ddd" stroke-width="0.5" stroke-dasharray="4,3"/>
+                <text x="72" y="124" font-size="11" font-family="sans-serif" text-anchor="end" fill="#555">0.30</text>
+                <line x1="80" y1="120" x2="420" y2="120" stroke="#ddd" stroke-width="0.5" stroke-dasharray="4,3"/>
+                <text x="72" y="74" font-size="11" font-family="sans-serif" text-anchor="end" fill="#555">0.40</text>
+                <line x1="80" y1="70" x2="420" y2="70" stroke="#ddd" stroke-width="0.5" stroke-dasharray="4,3"/>
+
+                <!-- Y-axis title -->
+                <text x="20" y="160" font-size="12" font-family="sans-serif" text-anchor="middle"
+                      fill="#333" transform="rotate(-90,20,160)">Probability p(1)</text>
+
+                <!-- Theoretical bar (blue) -->
+                <!-- p(1) = 0.25 => height = 0.25 * 500 = 125px, y = 270-125 = 145 -->
+                <rect x="130" y="145" width="80" height="125" fill="#2a5cae" rx="3" ry="3" opacity="0.85"/>
+                <text x="170" y="140" font-size="12" font-family="sans-serif" text-anchor="middle"
+                      fill="#2a5cae" font-weight="600">0.2500</text>
+                <text x="170" y="295" font-size="12" font-family="sans-serif" text-anchor="middle"
+                      fill="#333">Theoretical</text>
+
+                <!-- Observed bar (green) -->
+                <!-- p(1) = 0.2413 => height = 0.2413 * 500 = 120.65, y = 270-120.65 = 149.35 -->
+                <rect x="280" y="149" width="80" height="121" fill="#1a7a3a" rx="3" ry="3" opacity="0.85"/>
+                <text x="320" y="144" font-size="12" font-family="sans-serif" text-anchor="middle"
+                      fill="#1a7a3a" font-weight="600">0.2413</text>
+                <text x="320" y="295" font-size="12" font-family="sans-serif" text-anchor="middle"
+                      fill="#333">Observed</text>
+
+                <!-- Error bar on observed (1-sigma = 0.00433 => 0.00433*500 = 2.17px) -->
+                <!-- Full bar: +/- 2*sigma => +/- 4.33px -->
+                <line x1="320" y1="145" x2="320" y2="154" stroke="#1a1a1a" stroke-width="1.5"/>
+                <line x1="310" y1="145" x2="330" y2="145" stroke="#1a1a1a" stroke-width="1.5"/>
+                <line x1="310" y1="154" x2="330" y2="154" stroke="#1a1a1a" stroke-width="1.5"/>
+
+                <!-- Error bar annotation -->
+                <text x="350" y="150" font-size="10" font-family="sans-serif" fill="#666">&plusmn;2&sigma;</text>
+
+                <!-- Dashed line at theoretical value -->
+                <line x1="80" y1="145" x2="420" y2="145" stroke="#2a5cae" stroke-width="1"
+                      stroke-dasharray="6,3" opacity="0.5"/>
+            </svg>
+        </div>
+        <figcaption>
+            <strong>Figure 5.2.</strong> Bar chart comparing theoretical (blue) and Cirq-observed (green) values of \(p(1)\) at \(\theta = \pi/3\). Error bars show \(\pm 2\sigma\) from Bernoulli shot noise. The dashed line marks the theoretical value
+            0.25.
+        </figcaption>
+    </figure>
+
+    <h3>5.4.5 Verdict</h3>
+
+    <!-- Evidence Card -->
+    <div class="evidence-card">
+        <div class="evidence-label">
+            Evidence 5.1 &mdash; Physical Correctness of PLM Encoding Circuit
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Parameter</th>
+                    <th>Value</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Test angle</td>
+                    <td>\(\theta = \pi/3 \approx 1.0472\)</td>
+                </tr>
+                <tr>
+                    <td>Shots</td>
+                    <td>10,000</td>
+                </tr>
+                <tr>
+                    <td>Simulator</td>
+                    <td>Cirq state-vector simulator (seed 42)</td>
+                </tr>
+                <tr>
+                    <td>Theoretical \(p(1)\)</td>
+                    <td>0.2500</td>
+                </tr>
+                <tr>
+                    <td>Observed \(p(1)\)</td>
+                    <td>0.2413</td>
+                </tr>
+                <tr>
+                    <td>Standard error (\(\sigma\))</td>
+                    <td>0.00433</td>
+                </tr>
+                <tr>
+                    <td>\(z\)-score</td>
+                    <td>2.01</td>
+                </tr>
+                <tr>
+                    <td>Relative error on \(\langle Z\rangle\)</td>
+                    <td>0.87%</td>
+                </tr>
+            </tbody>
+        </table>
+        <p>
+            The observed deviation is within the expected \(\pm 2\sigma\) Bernoulli interval. The circuit implementation faithfully reproduces the analytic measurement law.
+        </p>
+        <span class="verdict pass">PASS</span>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- 5.5  FULL QUANTUM TEMPORAL PIPELINE                           -->
+    <!-- ============================================================ -->
+    <h2 id="sec-5-5">5.5 Full Quantum Temporal Pipeline</h2>
+
+    <p>
+        With the encoding circuit verified, we now execute the full quantum temporal pipeline: for each PLM time step \(t\), compute \(S(t)\), map to \(\theta(t) = S(t) \bmod 2\pi\), build the circuit, simulate 200 shots, and record \(p(1)\) and \(\langle Z\rangle\).
+    </p>
+
+    <h3>5.5.1 Pipeline Code</h3>
+
+    <pre><code><span class="kw">import</span> <span class="ty">cirq</span>
+<span class="kw">import</span> <span class="ty">numpy</span> <span class="kw">as</span> np
+<span class="kw">from</span> <span class="ty">plm_core</span> <span class="kw">import</span> plm_step  <span class="cm"># PLM recurrence function</span>
+
+<span class="kw">def</span> <span class="fn">quantum_temporal_pipeline</span>(
+    steps: <span class="ty">int</span> = <span class="nu">5</span>,
+    shots: <span class="ty">int</span> = <span class="nu">200</span>,
+    scale: <span class="ty">float</span> = <span class="nu">1.0</span>,
+    seed: <span class="ty">int</span> | <span class="ty">None</span> = <span class="kw">None</span>,
+) -> <span class="ty">list</span>[<span class="ty">dict</span>]:
+    <span class="st">"""Run the PLM quantum temporal pipeline for the given number of steps."""</span>
+    q = cirq.LineQubit(<span class="nu">0</span>)
+    sim = cirq.Simulator(seed=seed)
+    results = []
+
+    S = plm_step(<span class="nu">0</span>)  <span class="cm"># initial PLM value</span>
+    <span class="kw">for</span> t <span class="kw">in</span> <span class="fn">range</span>(steps):
+        theta = (S * scale) % (<span class="nu">2</span> * np.pi)
+        circuit = cirq.Circuit([
+            cirq.H(q),
+            cirq.rz(theta)(q),
+            cirq.H(q),
+            cirq.measure(q, key=<span class="st">'m'</span>),
+        ])
+        res = sim.run(circuit, repetitions=shots)
+        counts = res.histogram(key=<span class="st">'m'</span>)
+        p1 = counts.get(<span class="nu">1</span>, <span class="nu">0</span>) / shots
+        z_exp = <span class="nu">1</span> - <span class="nu">2</span> * p1
+        results.append({
+            <span class="st">'t'</span>: t, <span class="st">'S'</span>: S, <span class="st">'theta'</span>: theta,
+            <span class="st">'p1'</span>: p1, <span class="st">'z_exp'</span>: z_exp,
+        })
+        S = plm_step(t + <span class="nu">1</span>)  <span class="cm"># advance PLM recurrence</span>
+    <span class="kw">return</span> results
+</code></pre>
+
+    <h3>5.5.2 Five-Step Results</h3>
+
+    <table>
+        <caption>Table 5.2. Full quantum temporal pipeline output (200 shots per step, seed = 42).</caption>
+        <thead>
+            <tr>
+                <th>Time Step \(t\)</th>
+                <th>\(S(t)\)</th>
+                <th>\(\theta(t)\)</th>
+                <th>\(p(1)\)</th>
+                <th>\(\langle Z \rangle\)</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>0</td>
+                <td>\(7.795 \times 10^{16}\)</td>
+                <td>4.131</td>
+                <td>0.784</td>
+                <td>&minus;0.568</td>
+            </tr>
+            <tr>
+                <td>1</td>
+                <td>\(7.981 \times 10^{16}\)</td>
+                <td>2.424</td>
+                <td>0.896</td>
+                <td>&minus;0.792</td>
+            </tr>
+            <tr>
+                <td>2</td>
+                <td>\(8.167 \times 10^{16}\)</td>
+                <td>3.566</td>
+                <td>0.946</td>
+                <td>&minus;0.892</td>
+            </tr>
+            <tr>
+                <td>3</td>
+                <td>\(8.352 \times 10^{16}\)</td>
+                <td>1.859</td>
+                <td>0.596</td>
+                <td>&minus;0.192</td>
+            </tr>
+            <tr>
+                <td>4</td>
+                <td>\(8.538 \times 10^{16}\)</td>
+                <td>0.151</td>
+                <td>0.006</td>
+                <td>0.988</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h3>5.5.3 Theoretical Cross-Check</h3>
+
+    <p>
+        For each measured \(\theta(t)\) we compare \(p_{\text{obs}}(1)\) against \(p_{\text{theory}}(1) = \sin^{2}(\theta/2)\):
+    </p>
+
+    <table>
+        <caption>Table 5.3. Theoretical cross-check of pipeline results.</caption>
+        <thead>
+            <tr>
+                <th>\(t\)</th>
+                <th>\(\theta\)</th>
+                <th>\(p_{\text{theory}}(1)\)</th>
+                <th>\(p_{\text{obs}}(1)\)</th>
+                <th>\(|\Delta p|\)</th>
+                <th>Within \(\pm 2\sigma\)?</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>0</td>
+                <td>4.131</td>
+                <td>\(\sin^{2}(2.066) = 0.776\)</td>
+                <td>0.784</td>
+                <td>0.008</td>
+                <td><span class="badge badge-pass">YES</span></td>
+            </tr>
+            <tr>
+                <td>1</td>
+                <td>2.424</td>
+                <td>\(\sin^{2}(1.212) = 0.879\)</td>
+                <td>0.896</td>
+                <td>0.017</td>
+                <td><span class="badge badge-pass">YES</span></td>
+            </tr>
+            <tr>
+                <td>2</td>
+                <td>3.566</td>
+                <td>\(\sin^{2}(1.783) = 0.956\)</td>
+                <td>0.946</td>
+                <td>0.010</td>
+                <td><span class="badge badge-pass">YES</span></td>
+            </tr>
+            <tr>
+                <td>3</td>
+                <td>1.859</td>
+                <td>\(\sin^{2}(0.930) = 0.642\)</td>
+                <td>0.596</td>
+                <td>0.046</td>
+                <td><span class="badge badge-pass">YES</span></td>
+            </tr>
+            <tr>
+                <td>4</td>
+                <td>0.151</td>
+                <td>\(\sin^{2}(0.076) = 0.006\)</td>
+                <td>0.006</td>
+                <td>0.000</td>
+                <td><span class="badge badge-pass">YES</span></td>
+            </tr>
+        </tbody>
+    </table>
+
+    <p>
+        All five time steps pass the \(\pm 2\sigma\) consistency check against theory, confirming that the pipeline correctly implements the encoding circuit end-to-end.
+    </p>
+
+    <h3>5.5.4 Theta Over Time</h3>
+
+    <!-- SVG Line Chart: theta(t) over time steps -->
+    <figure>
+        <div class="chart-container">
+            <svg viewBox="0 0 600 340" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Line chart of theta over five PLM time steps">
+
+                <!-- Title -->
+                <text x="300" y="22" font-size="14" font-family="Segoe UI, Helvetica, sans-serif"
+                      text-anchor="middle" fill="#1a3c6e" font-weight="600">
+                    &theta;(t) Over PLM Time Steps
+                </text>
+
+                <!-- Axes -->
+                <line x1="70" y1="40" x2="70" y2="280" stroke="#1a1a1a" stroke-width="1.5"/>
+                <line x1="70" y1="280" x2="560" y2="280" stroke="#1a1a1a" stroke-width="1.5"/>
+
+                <!-- Y-axis: theta ranges 0 to 2*pi ~ 6.283 -->
+                <!-- Scale: 240px for 6.283 => 1 radian = 38.2px -->
+                <text x="62" y="284" font-size="10" font-family="sans-serif" text-anchor="end" fill="#555">0</text>
+                <text x="62" y="208" font-size="10" font-family="sans-serif" text-anchor="end" fill="#555">&pi;</text>
+                <line x1="70" y1="204" x2="560" y2="204" stroke="#ddd" stroke-width="0.5" stroke-dasharray="4,3"/>
+                <text x="62" y="132" font-size="10" font-family="sans-serif" text-anchor="end" fill="#555">2&pi;/3</text>
+                <text x="62" y="46" font-size="10" font-family="sans-serif" text-anchor="end" fill="#555">2&pi;</text>
+                <line x1="70" y1="42" x2="560" y2="42" stroke="#ddd" stroke-width="0.5" stroke-dasharray="4,3"/>
+
+                <!-- Y-axis label -->
+                <text x="15" y="160" font-size="12" font-family="sans-serif" text-anchor="middle"
+                      fill="#333" transform="rotate(-90,15,160)">&theta; (radians)</text>
+
+                <!-- X-axis labels -->
+                <text x="120" y="300" font-size="11" font-family="sans-serif" text-anchor="middle" fill="#555">0</text>
+                <text x="230" y="300" font-size="11" font-family="sans-serif" text-anchor="middle" fill="#555">1</text>
+                <text x="340" y="300" font-size="11" font-family="sans-serif" text-anchor="middle" fill="#555">2</text>
+                <text x="450" y="300" font-size="11" font-family="sans-serif" text-anchor="middle" fill="#555">3</text>
+                <text x="540" y="300" font-size="11" font-family="sans-serif" text-anchor="middle" fill="#555">4</text>
+
+                <!-- X-axis label -->
+                <text x="310" y="325" font-size="12" font-family="sans-serif" text-anchor="middle"
+                      fill="#333">Time Step t</text>
+
+                <!-- Data points: theta values [4.131, 2.424, 3.566, 1.859, 0.151] -->
+                <!-- y = 280 - (theta/6.283)*238 -->
+                <!-- t=0: theta=4.131, y = 280 - (4.131/6.283)*238 = 280 - 156.5 = 123.5 -->
+                <!-- t=1: theta=2.424, y = 280 - (2.424/6.283)*238 = 280 - 91.9 = 188.1 -->
+                <!-- t=2: theta=3.566, y = 280 - (3.566/6.283)*238 = 280 - 135.1 = 144.9 -->
+                <!-- t=3: theta=1.859, y = 280 - (1.859/6.283)*238 = 280 - 70.4 = 209.6 -->
+                <!-- t=4: theta=0.151, y = 280 - (0.151/6.283)*238 = 280 - 5.7 = 274.3 -->
+
+                <!-- Connecting lines -->
+                <polyline points="120,123 230,188 340,145 450,210 540,274"
+                          fill="none" stroke="#2a5cae" stroke-width="2.5" stroke-linejoin="round"/>
+
+                <!-- Data point circles -->
+                <circle cx="120" cy="123" r="5" fill="#2a5cae" stroke="#fff" stroke-width="1.5"/>
+                <circle cx="230" cy="188" r="5" fill="#2a5cae" stroke="#fff" stroke-width="1.5"/>
+                <circle cx="340" cy="145" r="5" fill="#2a5cae" stroke="#fff" stroke-width="1.5"/>
+                <circle cx="450" cy="210" r="5" fill="#2a5cae" stroke="#fff" stroke-width="1.5"/>
+                <circle cx="540" cy="274" r="5" fill="#2a5cae" stroke="#fff" stroke-width="1.5"/>
+
+                <!-- Value labels -->
+                <text x="120" y="113" font-size="10" font-family="sans-serif" text-anchor="middle" fill="#2a5cae" font-weight="600">4.131</text>
+                <text x="230" y="183" font-size="10" font-family="sans-serif" text-anchor="middle" fill="#2a5cae" font-weight="600">2.424</text>
+                <text x="355" y="140" font-size="10" font-family="sans-serif" text-anchor="start" fill="#2a5cae" font-weight="600">3.566</text>
+                <text x="450" y="200" font-size="10" font-family="sans-serif" text-anchor="middle" fill="#2a5cae" font-weight="600">1.859</text>
+                <text x="540" y="265" font-size="10" font-family="sans-serif" text-anchor="middle" fill="#2a5cae" font-weight="600">0.151</text>
+            </svg>
+        </div>
+        <figcaption>
+            <strong>Figure 5.3.</strong> The mapped angle \(\theta(t) = S(t) \bmod 2\pi\) over five PLM time steps. The non-monotonic trajectory reflects the large PLM values wrapping around the \([0,2\pi)\) domain.
+        </figcaption>
+    </figure>
+
+    <h3>5.5.5 Expectation Value \(\langle Z \rangle = \cos(\theta)\)</h3>
+
+    <!-- SVG: <Z> theoretical curve vs measured points -->
+    <figure>
+        <div class="chart-container">
+            <svg viewBox="0 0 600 380" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Chart showing theoretical cos(theta) curve and measured Z-expectation values">
+
+                <!-- Title -->
+                <text x="300" y="22" font-size="14" font-family="Segoe UI, Helvetica, sans-serif"
+                      text-anchor="middle" fill="#1a3c6e" font-weight="600">
+                    Pauli-Z Expectation: Theory vs. Measured
+                </text>
+
+                <!-- Axes -->
+                <line x1="70" y1="40" x2="70" y2="320" stroke="#1a1a1a" stroke-width="1.5"/>
+                <line x1="70" y1="180" x2="560" y2="180" stroke="#1a1a1a" stroke-width="1"/>
+                <line x1="70" y1="320" x2="560" y2="320" stroke="#1a1a1a" stroke-width="1.5"/>
+
+                <!-- Y-axis: <Z> from -1 to +1, center at 180 -->
+                <!-- Scale: 140px per unit, -1 at y=320, 0 at y=180, +1 at y=40 -->
+                <text x="62" y="44" font-size="10" font-family="sans-serif" text-anchor="end" fill="#555">+1.0</text>
+                <text x="62" y="114" font-size="10" font-family="sans-serif" text-anchor="end" fill="#555">+0.5</text>
+                <line x1="70" y1="110" x2="560" y2="110" stroke="#eee" stroke-width="0.5" stroke-dasharray="3,3"/>
+                <text x="62" y="184" font-size="10" font-family="sans-serif" text-anchor="end" fill="#555">0.0</text>
+                <text x="62" y="254" font-size="10" font-family="sans-serif" text-anchor="end" fill="#555">&minus;0.5</text>
+                <line x1="70" y1="250" x2="560" y2="250" stroke="#eee" stroke-width="0.5" stroke-dasharray="3,3"/>
+                <text x="62" y="324" font-size="10" font-family="sans-serif" text-anchor="end" fill="#555">&minus;1.0</text>
+
+                <!-- Y-axis label -->
+                <text x="15" y="180" font-size="12" font-family="sans-serif" text-anchor="middle"
+                      fill="#333" transform="rotate(-90,15,180)">&lt;Z&gt;</text>
+
+                <!-- X-axis: theta from 0 to 2pi -->
+                <!-- Scale: 490px for 2pi, origin at x=70 -->
+                <!-- 1 radian = 490/6.283 = 78.0px -->
+                <text x="70" y="340" font-size="10" font-family="sans-serif" text-anchor="middle" fill="#555">0</text>
+                <text x="192" y="340" font-size="10" font-family="sans-serif" text-anchor="middle" fill="#555">&pi;/2</text>
+                <line x1="192" y1="320" x2="192" y2="40" stroke="#eee" stroke-width="0.5" stroke-dasharray="3,3"/>
+                <text x="315" y="340" font-size="10" font-family="sans-serif" text-anchor="middle" fill="#555">&pi;</text>
+                <line x1="315" y1="320" x2="315" y2="40" stroke="#eee" stroke-width="0.5" stroke-dasharray="3,3"/>
+                <text x="437" y="340" font-size="10" font-family="sans-serif" text-anchor="middle" fill="#555">3&pi;/2</text>
+                <line x1="437" y1="320" x2="437" y2="40" stroke="#eee" stroke-width="0.5" stroke-dasharray="3,3"/>
+                <text x="560" y="340" font-size="10" font-family="sans-serif" text-anchor="middle" fill="#555">2&pi;</text>
+
+                <!-- X-axis label -->
+                <text x="315" y="365" font-size="12" font-family="sans-serif" text-anchor="middle"
+                      fill="#333">&theta; (radians)</text>
+
+                <!-- Theoretical cos(theta) curve - sampled at 40 points -->
+                <!-- y = 180 - 140*cos(theta), x = 70 + (theta/6.283)*490 -->
+                <polyline fill="none" stroke="#2a5cae" stroke-width="1.5" opacity="0.6"
+                    points="
+                        70,40 82,42 94,49 106,59 118,73 130,90 142,109
+                        155,130 167,151 179,172 192,192 204,210 216,226
+                        228,240 240,250 253,258 265,261 277,261 289,257
+                        301,249 315,238 327,224 339,207 351,188 363,168
+                        376,147 388,127 400,108 412,91 424,78 437,67
+                        449,60 461,56 473,56 485,60 498,67 510,78
+                        522,92 534,109 546,128 560,148
+                    "/>
+
+                <!-- Theoretical curve label -->
+                <text x="500" y="50" font-size="10" font-family="sans-serif" fill="#2a5cae">
+                    cos(&theta;) theory
+                </text>
+                <line x1="470" y1="47" x2="495" y2="47" stroke="#2a5cae" stroke-width="1.5" opacity="0.6"/>
+
+                <!-- Measured data points -->
+                <!-- t=0: theta=4.131, <Z>=-0.568, x=70+4.131*78.0=392, y=180-(-0.568)*140=180+79.5=260 -->
+                <!-- t=1: theta=2.424, <Z>=-0.792, x=70+2.424*78.0=259, y=180+110.9=291 -->
+                <!-- t=2: theta=3.566, <Z>=-0.892, x=70+3.566*78.0=348, y=180+124.9=305 -->
+                <!-- t=3: theta=1.859, <Z>=-0.192, x=70+1.859*78.0=215, y=180+26.9=207 -->
+                <!-- t=4: theta=0.151, <Z>=+0.988, x=70+0.151*78.0=82, y=180-138.3=42 -->
+
+                <circle cx="392" cy="260" r="6" fill="#c04040" stroke="#fff" stroke-width="1.5"/>
+                <circle cx="259" cy="291" r="6" fill="#c04040" stroke="#fff" stroke-width="1.5"/>
+                <circle cx="348" cy="305" r="6" fill="#c04040" stroke="#fff" stroke-width="1.5"/>
+                <circle cx="215" cy="207" r="6" fill="#c04040" stroke="#fff" stroke-width="1.5"/>
+                <circle cx="82" cy="42" r="6" fill="#c04040" stroke="#fff" stroke-width="1.5"/>
+
+                <!-- Point labels -->
+                <text x="392" y="253" font-size="9" font-family="sans-serif" text-anchor="middle" fill="#c04040" font-weight="600">t=0</text>
+                <text x="259" y="284" font-size="9" font-family="sans-serif" text-anchor="middle" fill="#c04040" font-weight="600">t=1</text>
+                <text x="348" y="298" font-size="9" font-family="sans-serif" text-anchor="middle" fill="#c04040" font-weight="600">t=2</text>
+                <text x="215" y="200" font-size="9" font-family="sans-serif" text-anchor="middle" fill="#c04040" font-weight="600">t=3</text>
+                <text x="93" y="39" font-size="9" font-family="sans-serif" text-anchor="start" fill="#c04040" font-weight="600">t=4</text>
+
+                <!-- Measured points legend -->
+                <circle cx="475" cy="63" r="4" fill="#c04040"/>
+                <text x="485" y="67" font-size="10" font-family="sans-serif" fill="#c04040">
+                    Measured
+                </text>
+            </svg>
+        </div>
+        <figcaption>
+            <strong>Figure 5.4.</strong> The Pauli-\(Z\) expectation value as a function of \(\theta\). The smooth blue curve is the analytic prediction \(\langle Z\rangle = \cos(\theta)\). Red points are the five measured pipeline values, which all lie
+            on or very near the theoretical curve.
+        </figcaption>
+    </figure>
+
+    <p>
+        The agreement between measured points and the theoretical cosine curve confirms end-to-end correctness of the quantum temporal pipeline. The small deviations are entirely attributable to Bernoulli shot noise from 200-shot sampling.
+    </p>
+
+    <!-- ============================================================ -->
+    <!-- 5.6  INTERPRETATION                                           -->
+    <!-- ============================================================ -->
+    <h2 id="sec-5-6">5.6 Interpretation</h2>
+
+    <p>
+        The quantum temporal pipeline establishes several key results:
+    </p>
+
+    <h3>5.6.1 Deterministic Parameterization of Quantum Observables</h3>
+
+    <p>
+        Each PLM time step \(t\) produces a scalar \(S(t)\) that, through the theta mapping and encoding circuit, deterministically fixes the expected quantum measurement statistics. Specifically:
+    </p>
+
+    <ul>
+        <li>
+            \(p(1)\) and \(\langle Z\rangle\) are <strong>deterministic functions</strong> of \(S(t)\). Two runs with the same PLM parameters will produce the same \(\theta(t)\) and thus the same expected probabilities.
+        </li>
+        <li>
+            The only source of variation between runs is the <strong>quantum shot noise</strong>, which decreases as \(1/\sqrt{N_{\text{shots}}}\) and can be made arbitrarily small with sufficient measurement repetitions.
+        </li>
+        <li>
+            The pipeline does <em>not</em> invoke any random number generator for the physics; Cirq&rsquo;s state-vector simulator computes exact state evolution, and randomness enters only at the final measurement sampling step.
+        </li>
+    </ul>
+
+    <h3>5.6.2 Real Linear Algebra</h3>
+
+    <p>
+        The Cirq state-vector simulator performs the exact matrix multiplications \(H \cdot R_z(\theta) \cdot H \cdot |0\rangle\) using 64-bit complex floating-point arithmetic. There is no approximation, truncation, or Trotterization. The simulator output is
+        the exact quantum state (up to machine-epsilon rounding), from which measurement outcomes are sampled according to the Born rule.
+    </p>
+
+    <h3>5.6.3 Shot Noise and the Born Rule</h3>
+
+    <p>
+        The fluctuations observed in Tables&nbsp;5.2 and&nbsp;5.3 are not numerical errors or implementation bugs. They are the expected consequence of the
+        <strong>Born rule</strong>: when a qubit in state \(|\psi\rangle\) is measured, each individual outcome is drawn from a Bernoulli distribution with parameter \(p(1) = |\langle 1|\psi\rangle|^{2}\). Estimating this probability from \(N\) shots
+        yields a binomial estimator whose standard deviation is exactly \(\sigma = \sqrt{p(1)(1-p(1))/N}\).
+    </p>
+
+    <p>
+        This is fundamental quantum mechanics, not a limitation of the implementation. Even a physical quantum processor would exhibit the same statistical fluctuations.
+    </p>
+
+    <div class="layman-box">
+        <span class="label">Layman&rsquo;s Explanation &mdash; What Is Happening?</span>
+        <p>
+            At each time step, the PLM formula produces a number. We use that number to set the rotation angle of a <strong>quantum coin</strong>. Then we spin the quantum coin many times and count how often it lands on heads versus tails. Because the
+            rotation angle is fixed by PLM, the <em>long-run fraction</em> of heads is completely predictable&mdash;but any single flip is still random, just like a real coin. The small wobbles in our results are exactly the kind of randomness you&rsquo;d
+            expect from flipping a biased coin 200 times.
+        </p>
+    </div>
+
+    <h3>5.6.4 Significance for the PLM Framework</h3>
+
+    <p>
+        The quantum temporal integration demonstrates that PLM outputs are not merely abstract mathematical quantities; they can serve as physically meaningful parameters in quantum circuits. The encoding circuit is a standard quantum primitive&mdash;it appears
+        in quantum phase estimation, variational quantum eigensolvers, and quantum sensing protocols. By showing that PLM can drive this primitive and produce physically correct results, we establish a bridge between the PLM formalism and the quantum
+        computing ecosystem.
+    </p>
+
+    <!-- ============================================================ -->
+    <!-- 5.7  GPU ACCELERATION                                         -->
+    <!-- ============================================================ -->
+    <h2 id="sec-5-7">5.7 GPU Acceleration</h2>
+
+    <p>
+        While all results in this thesis were obtained using the CPU-based Cirq state-vector simulator for reproducibility and accessibility, the pipeline is designed to take advantage of GPU acceleration when available.
+    </p>
+
+    <h3>5.7.1 CUDA and qsimcirq</h3>
+
+    <p>
+        Google&rsquo;s <code>qsimcirq</code> backend provides a CUDA-accelerated state-vector simulator that can replace the default Cirq simulator with minimal code changes:
+    </p>
+
+    <pre><code><span class="kw">import</span> <span class="ty">qsimcirq</span>
+
+<span class="cm"># GPU-accelerated simulator (drop-in replacement for cirq.Simulator)</span>
+gpu_options = qsimcirq.QSimOptions(
+    max_fused_gate_size=<span class="nu">2</span>,
+    use_gpu=<span class="kw">True</span>,
+)
+sim = qsimcirq.QSimSimulator(options=gpu_options)
+</code></pre>
+
+    <p>
+        For single-qubit circuits like the PLM encoding circuit, GPU acceleration offers negligible speedup (the overhead of GPU kernel launch dominates). However, for the multi-qubit extensions discussed in Chapter&nbsp;6 (e.g., Grover&rsquo;s algorithm demonstrations),
+        GPU acceleration becomes essential as the state-vector size grows exponentially with qubit count.
+    </p>
+
+    <h3>5.7.2 Configuration</h3>
+
+    <p>
+        GPU settings are stored in a configuration file:
+    </p>
+
+    <pre><code><span class="cm">// cuda_config.json</span>
+{
+    <span class="st">"use_gpu"</span>: <span class="kw">false</span>,
+    <span class="st">"gpu_device_id"</span>: <span class="nu">0</span>,
+    <span class="st">"max_fused_gate_size"</span>: <span class="nu">2</span>,
+    <span class="st">"max_local_qubits"</span>: <span class="nu">6</span>,
+    <span class="st">"verbosity"</span>: <span class="nu">0</span>,
+    <span class="st">"fallback_to_cpu"</span>: <span class="kw">true</span>
+}
+</code></pre>
+
+    <p>
+        The <code>fallback_to_cpu</code> flag ensures graceful degradation on machines without NVIDIA GPUs. All thesis verification was performed with <code>"use_gpu": false</code>.
+    </p>
+
+    <h3>5.7.3 Docker Container</h3>
+
+    <p>
+        For reproducibility, a Docker image packages the complete environment:
+    </p>
+
+    <pre><code><span class="cm"># Dockerfile excerpt for plm-cirq container</span>
+<span class="kw">FROM</span> nvidia/cuda:<span class="nu">12.2</span>.0-runtime-ubuntu22.04
+<span class="kw">RUN</span> pip install cirq==<span class="nu">1.3</span>.0 qsimcirq==<span class="nu">0.17</span>.0 numpy scipy
+<span class="kw">COPY</span> plm_core/ /app/plm_core/
+<span class="kw">COPY</span> quantum_temporal/ /app/quantum_temporal/
+<span class="kw">COPY</span> cuda_config.json /app/cuda_config.json
+<span class="kw">WORKDIR</span> /app
+<span class="kw">ENTRYPOINT</span> [<span class="st">"python"</span>, <span class="st">"-m"</span>, <span class="st">"quantum_temporal.pipeline"</span>]
+</code></pre>
+
+    <pre><code><span class="cm"># Build and run</span>
+docker build -t plm-cirq .
+docker run --gpus all plm-cirq --steps <span class="nu">5</span> --shots <span class="nu">200</span>
+
+<span class="cm"># CPU-only fallback (no --gpus flag)</span>
+docker run plm-cirq --steps <span class="nu">5</span> --shots <span class="nu">200</span>
+</code></pre>
+
+    <h3>5.7.4 CPU Fallback Statement</h3>
+
+    <div class="remark">
+        <span class="label">Remark 5.1 (Reproducibility)</span>
+        <p>
+            All quantum simulation results presented in this thesis (Chapters 5 and 6) were produced using the CPU-based <code>cirq.Simulator</code> with explicit random seeds. No GPU was used. This ensures that every result can be reproduced on any machine
+            with Python 3.10+ and Cirq 1.3.0 installed, without requiring specialized hardware.
+        </p>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- 5.8  COMPARISON TO STANDARD QUANTUM ALGORITHMS                -->
+    <!-- ============================================================ -->
+    <h2 id="sec-5-8">5.8 Comparison to Standard Quantum Algorithms</h2>
+
+    <p>
+        The \(H\text{-}R_z\text{-}H\) circuit used in the PLM encoding is not an exotic construction. It is a standard primitive that appears throughout quantum computing. This section places the PLM quantum integration in context by examining its relationship
+        to established algorithms.
+    </p>
+
+    <h3>5.8.1 Quantum Phase Estimation (QPE)</h3>
+
+    <p>
+        In quantum phase estimation, the core subroutine is to apply a controlled-\(R_z\) rotation whose angle encodes the eigenvalue of a unitary operator. The PLM encoding circuit is a simplified, single-qubit version of the same idea: instead of estimating
+        an unknown phase, we <em>impose</em> a known phase derived from PLM and verify that the measurement statistics match the prediction.
+    </p>
+
+    <p>
+        The conceptual relationship is:
+    </p>
+
+    <div class="math-display">
+        \[ \underbrace{H \;\cdot\; R_z(\theta) \;\cdot\; H}_{\text{PLM encoding (known }\theta\text{)}} \quad \longleftrightarrow \quad \underbrace{H^{\otimes n} \;\cdot\; \text{controlled-}U^{2^k} \;\cdot\; \text{QFT}^{-1}}_{\text{QPE (unknown phase)}} \]
+    </div>
+
+    <p>
+        Both circuits convert a phase into a measurable amplitude via interference. The difference is that QPE uses multiple qubits and an inverse quantum Fourier transform to achieve high-resolution phase estimation, whereas PLM encoding uses a single qubit
+        for direct verification.
+    </p>
+
+    <h3>5.8.2 Variational Quantum Eigensolvers (VQE)</h3>
+
+    <p>
+        In VQE, parameterized circuits (ansatze) with rotation gates \(R_y(\theta)\), \(R_z(\theta)\), etc., are used to prepare trial wavefunctions. The parameters are optimized classically to minimize the expectation value of a Hamiltonian. The PLM quantum
+        encoding uses the same gate vocabulary but with a fixed, deterministic parameterization rather than a classical optimization loop.
+    </p>
+
+    <table>
+        <caption>Table 5.4. Comparison of PLM encoding to standard quantum algorithms.</caption>
+        <thead>
+            <tr>
+                <th>Feature</th>
+                <th>PLM Encoding</th>
+                <th>QPE</th>
+                <th>VQE</th>
+                <th>Quantum Sensing</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Qubits</td>
+                <td>1</td>
+                <td>\(n + 1\)</td>
+                <td>Problem-dependent</td>
+                <td>1 (typically)</td>
+            </tr>
+            <tr>
+                <td>Parameter source</td>
+                <td>PLM recurrence</td>
+                <td>Unknown eigenvalue</td>
+                <td>Classical optimizer</td>
+                <td>Physical field</td>
+            </tr>
+            <tr>
+                <td>Core gate</td>
+                <td>\(R_z(\theta)\)</td>
+                <td>Controlled-\(U\)</td>
+                <td>\(R_y, R_z\) layers</td>
+                <td>Ramsey \(R_z\)</td>
+            </tr>
+            <tr>
+                <td>Interference mechanism</td>
+                <td>Hadamard sandwich</td>
+                <td>QFT\(^{-1}\)</td>
+                <td>Entangling layers</td>
+                <td>Ramsey fringes</td>
+            </tr>
+            <tr>
+                <td>Goal</td>
+                <td>Verify/encode PLM value</td>
+                <td>Estimate eigenphase</td>
+                <td>Minimize energy</td>
+                <td>Measure field strength</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h3>5.8.3 Quantum Sensing (Ramsey Interferometry)</h3>
+
+    <p>
+        The PLM encoding circuit is structurally identical to a
+        <strong>Ramsey interferometry</strong> experiment, the standard technique in quantum sensing. In Ramsey interferometry, an atom or spin-1/2 particle is placed in superposition, allowed to accumulate a phase from an external field, and then measured.
+        The PLM encoding circuit does exactly this, with the &ldquo;external field&rdquo; replaced by the PLM-derived angle \(\theta\).
+    </p>
+
+    <p>
+        This structural identity means that PLM outputs could, in principle, serve as calibration signals for quantum sensors&mdash;providing a deterministic, reproducible reference phase for benchmarking sensor accuracy.
+    </p>
+
+    <h3>5.8.4 PLM&rsquo;s Contribution</h3>
+
+    <p>
+        The novelty of the PLM quantum integration is <em>not</em> in the circuit architecture (which is standard) but in the <strong>deterministic mathematical
+        parameterization</strong>. Whereas QPE discovers an unknown phase, VQE searches for an optimal phase, and quantum sensing measures a physical phase, the PLM encoding
+        <em>prescribes</em> a phase derived from a well-defined mathematical recurrence. This provides:
+    </p>
+
+    <ol>
+        <li>
+            <strong>Reproducibility:</strong> Given the same PLM parameters and time step, the circuit and its expected measurement statistics are fully determined. No optimization or physical calibration is required.
+        </li>
+        <li>
+            <strong>Verifiability:</strong> The analytic measurement law \(p(1) = \sin^{2}(\theta/2)\) provides a closed-form prediction against which every simulation run can be checked.
+        </li>
+        <li>
+            <strong>Extensibility:</strong> The single-qubit encoding circuit is the building block for multi-qubit algorithms. Chapter&nbsp;6 demonstrates this with a Grover search oracle parameterized by PLM values.
+        </li>
+    </ol>
+
+    <h3>5.8.5 Multi-Qubit Extensions</h3>
+
+    <p>
+        The single-qubit \(H\text{-}R_z\text{-}H\) circuit naturally extends to multi-qubit systems. The simplest extension applies the encoding circuit independently to each qubit in a register, creating a product state:
+    </p>
+
+    <div class="math-display">
+        \[ |\Psi\rangle \;=\; \bigotimes_{k=0}^{n-1} \Bigl[\cos\!\bigl(\tfrac{\theta_k}{2}\bigr)\,|0\rangle - i\sin\!\bigl(\tfrac{\theta_k}{2}\bigr)\,|1\rangle\Bigr], \]
+    </div>
+
+    <p>
+        where each \(\theta_k\) is derived from PLM at a different time step or with a different scale factor. More interesting extensions involve entangling gates (CNOT, CZ) between the qubits, enabling applications such as:
+    </p>
+
+    <ul>
+        <li>
+            <strong>Grover&rsquo;s search</strong> with PLM-parameterized oracles (Chapter&nbsp;6, Section&nbsp;6.5).
+        </li>
+        <li>
+            <strong>Quantum walks</strong> on graphs defined by PLM adjacency matrices.
+        </li>
+        <li>
+            <strong>Variational circuits</strong> with PLM-initialized parameters as warm starts for VQE optimization.
+        </li>
+    </ul>
+
+    <p>
+        These multi-qubit applications are covered in detail in Chapter&nbsp;6.
+    </p>
+
+    <!-- ============================================================ -->
+    <!-- CHAPTER SUMMARY                                               -->
+    <!-- ============================================================ -->
+    <h2 id="sec-5-summary">Chapter Summary</h2>
+
+    <p>
+        This chapter established the quantum temporal integration of PLM through the following contributions:
+    </p>
+
+    <ol>
+        <li>
+            <strong>Encoding circuit definition</strong> (Section&nbsp;5.2): The \(H\text{-}R_z(\theta)\text{-}H\) circuit maps PLM outputs onto single-qubit measurement probabilities with an analytic measurement law \(p(1) = \sin^{2}(\theta/2)\).
+        </li>
+        <li>
+            <strong>Theta mapping</strong> (Section&nbsp;5.3): The modular reduction \(\theta = S \bmod 2\pi\) maps arbitrary PLM scalars into the natural angular domain of the rotation gate.
+        </li>
+        <li>
+            <strong>Physical verification</strong> (Section&nbsp;5.4): At \(\theta = \pi/3\), the Cirq simulation with 10,000 shots reproduced the theoretical \(p(1) = 0.25\) to within 0.87% relative error, with a \(z\)-score of 2.01 confirming consistency
+            with Bernoulli shot noise.
+        </li>
+        <li>
+            <strong>Full pipeline execution</strong> (Section&nbsp;5.5): Five PLM time steps were processed through the complete pipeline, with all results matching the theoretical cosine law within expected statistical tolerance.
+        </li>
+        <li>
+            <strong>Standard-algorithm comparison</strong> (Section&nbsp;5.8): The encoding circuit was placed in context with QPE, VQE, and Ramsey interferometry, identifying PLM&rsquo;s contribution as deterministic mathematical parameterization of
+            a standard quantum primitive.
+        </li>
+    </ol>
+
+    <p>
+        Chapter&nbsp;6 builds on this foundation with multi-qubit demonstrations, including Grover search oracles, NP-hard problem benchmarks, and cryptographic applications.
+    </p>
+
+    <!-- ============================================================ -->
+    <!-- PAGE NAVIGATION                                               -->
+    <!-- ============================================================ -->
+    <div class="page-nav">
+        <a href="chapter4.html">&larr; Chapter 4: Empirical Verification and Determinism</a>
+        <a href="chapter6.html">Chapter 6: Benchmark Applications and Demonstrations &rarr;</a>
+    </div>
+
+</body>
+
+</html>

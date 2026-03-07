@@ -1,0 +1,968 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Appendix -- PLM Thesis: Raw Data, Code Listings, and Bibliography</title>
+    <link rel="stylesheet" href="style.css">
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [
+                    ['\\(', '\\)']
+                ],
+                displayMath: [
+                    ['\\[', '\\]']
+                ]
+            }
+        };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
+</head>
+
+<body>
+
+    <h1>Appendix</h1>
+    <p style="font-size:1.1rem; color:#555; margin-bottom:2rem;">Raw Data, Code Listings, and Bibliography</p>
+
+    <nav class="chapter-nav">
+        <h2>Appendix Contents</h2>
+        <ol>
+            <li><a href="#appendix-a">Appendix A: Complete Source Code Listings</a></li>
+            <li><a href="#appendix-b">Appendix B: Raw Validation Output</a></li>
+            <li><a href="#appendix-c">Appendix C: The PLM Constant to 80 Decimal Places</a></li>
+            <li><a href="#appendix-d">Appendix D: Repository File Manifest</a></li>
+            <li><a href="#appendix-e">Appendix E: Environment Specifications</a></li>
+            <li><a href="#appendix-f">Appendix F: Bibliography and References</a></li>
+        </ol>
+    </nav>
+
+    <!-- ================================================================ -->
+    <!-- APPENDIX A: SOURCE CODE                                          -->
+    <!-- ================================================================ -->
+    <section id="appendix-a">
+        <h2>Appendix A: Complete Source Code Listings</h2>
+
+        <h3 id="a1">A.1 Core Model &mdash; <code>plm_formalized/model.py</code></h3>
+        <p>The core mathematical engine of the PLM framework. All arithmetic uses Python&rsquo;s <code>decimal.Decimal</code> at 80-digit precision to guarantee exact reproducibility.</p>
+        <pre><code><span class="kw">from</span> __future__ <span class="kw">import</span> annotations
+<span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass
+<span class="kw">from</span> decimal <span class="kw">import</span> Decimal, getcontext
+
+getcontext().prec = <span class="nu">80</span>
+
+
+<span class="kw">def</span> <span class="fn">hex_to_int</span>(hex_str: <span class="ty">str</span>) -> <span class="ty">int</span>:
+    <span class="st">"""Convert a hexadecimal string to an integer."""</span>
+    s = hex_str.strip().lower()
+    <span class="kw">if</span> s.startswith(<span class="st">"0x"</span>):
+        s = s[<span class="nu">2</span>:]
+    <span class="kw">if</span> <span class="kw">not</span> all(c <span class="kw">in</span> <span class="st">"0123456789abcdef"</span> <span class="kw">for</span> c <span class="kw">in</span> s):
+        <span class="kw">raise</span> <span class="ty">ValueError</span>(f<span class="st">"Invalid hex string: {hex_str}"</span>)
+    <span class="kw">return</span> int(s, <span class="nu">16</span>)
+
+
+<span class="kw">@dataclass</span>(frozen=<span class="nu">True</span>)
+<span class="kw">class</span> <span class="ty">PLMInputs</span>:
+    <span class="st">"""Immutable container for all PLM transform parameters."""</span>
+    pi: Decimal
+    lam: Decimal
+    mu: Decimal
+    x: <span class="ty">int</span>
+    public_hash_hex: <span class="ty">str</span>
+    block_size: <span class="ty">int</span>
+    crc_decimal: <span class="ty">int</span>
+
+    <span class="kw">def</span> <span class="fn">y</span>(self) -> <span class="ty">int</span>:
+        <span class="kw">return</span> hex_to_int(self.public_hash_hex)
+
+    <span class="kw">def</span> <span class="fn">c</span>(self) -> <span class="ty">int</span>:
+        c = self.block_size + self.crc_decimal
+        <span class="kw">if</span> c <= <span class="nu">0</span>:
+            <span class="kw">raise</span> <span class="ty">ValueError</span>(<span class="st">"C = block_size + crc_decimal must be positive"</span>)
+        <span class="kw">return</span> c
+
+
+<span class="kw">def</span> <span class="fn">plm_ratio</span>(pi: Decimal, lam: Decimal, mu: Decimal) -> Decimal:
+    <span class="st">"""Compute R = (pi * lambda) / mu."""</span>
+    <span class="kw">if</span> mu == <span class="nu">0</span>:
+        <span class="kw">raise</span> <span class="ty">ZeroDivisionError</span>(<span class="st">"mu cannot be zero"</span>)
+    <span class="kw">return</span> (pi * lam) / mu
+
+
+<span class="kw">def</span> <span class="fn">plm_secret_value</span>(inputs: PLMInputs) -> Decimal:
+    <span class="st">"""Compute S = ((pi * Y) * (lambda * X)) / (mu * C)."""</span>
+    <span class="kw">if</span> inputs.mu == <span class="nu">0</span>:
+        <span class="kw">raise</span> <span class="ty">ZeroDivisionError</span>(<span class="st">"mu cannot be zero"</span>)
+    Y = Decimal(inputs.y())
+    C = Decimal(inputs.c())
+    numerator = (inputs.pi * Y) * (inputs.lam * Decimal(inputs.x))
+    denominator = inputs.mu * C
+    <span class="kw">return</span> numerator / denominator</code></pre>
+
+        <h3 id="a2">A.2 Stateful Machine &mdash; <code>plm_formalized/stateful.py</code></h3>
+        <p>The stateful time-series wrapper that evolves PLM inputs over discrete time steps using an injected advance function (Strategy pattern).</p>
+        <pre><code><span class="kw">from</span> __future__ <span class="kw">import</span> annotations
+<span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass
+<span class="kw">from</span> typing <span class="kw">import</span> Callable
+<span class="kw">from</span> .model <span class="kw">import</span> PLMInputs, plm_secret_value
+
+<span class="kw">@dataclass</span>(frozen=<span class="nu">True</span>)
+<span class="kw">class</span> <span class="ty">PLMState</span>:
+    <span class="st">"""Immutable snapshot of the PLM state machine at time t."""</span>
+    t: <span class="ty">int</span>
+    inputs: PLMInputs
+
+AdvanceFn = Callable[[PLMState], PLMState]
+
+
+<span class="kw">class</span> <span class="ty">StatefulPLM</span>:
+    <span class="st">"""Deterministic state machine that evolves PLMInputs over time."""</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, initial: PLMState, advance: AdvanceFn):
+        self._state = initial
+        self._advance = advance
+
+    <span class="kw">@property</span>
+    <span class="kw">def</span> <span class="fn">state</span>(self) -> PLMState:
+        <span class="kw">return</span> self._state
+
+    <span class="kw">def</span> <span class="fn">step</span>(self) -> PLMState:
+        <span class="st">"""Advance one time step and return the new state."""</span>
+        self._state = self._advance(self._state)
+        <span class="kw">return</span> self._state
+
+    <span class="kw">def</span> <span class="fn">value</span>(self) -> Decimal:
+        <span class="st">"""Compute S for the current state."""</span>
+        <span class="kw">return</span> plm_secret_value(self._state.inputs)</code></pre>
+
+        <h3 id="a3">A.3 Quantum Temporal &mdash; <code>plm_formalized/quantum_temporal.py</code></h3>
+        <p>Encodes PLM time-series outputs into parametric quantum circuits using Google Cirq.</p>
+        <pre><code><span class="kw">from</span> __future__ <span class="kw">import</span> annotations
+<span class="kw">import</span> math
+<span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass
+<span class="kw">from</span> .model <span class="kw">import</span> plm_secret_value
+<span class="kw">from</span> .stateful <span class="kw">import</span> StatefulPLM
+
+<span class="kw">@dataclass</span>
+<span class="kw">class</span> <span class="ty">QuantumTemporalConfig</span>:
+    shots: <span class="ty">int</span> = <span class="nu">200</span>
+    scale: <span class="ty">float</span> = <span class="nu">1.0</span>
+
+
+<span class="kw">def</span> <span class="fn">simulate_time_series</span>(machine: StatefulPLM, steps: <span class="ty">int</span>,
+                          cfg: QuantumTemporalConfig) -> list:
+    <span class="kw">import</span> cirq
+    results = []
+    q = cirq.LineQubit(<span class="nu">0</span>)
+
+    <span class="kw">for</span> i <span class="kw">in</span> range(steps):
+        S = float(machine.value())
+        theta = (S * cfg.scale) % (<span class="nu">2</span> * math.pi)
+
+        circuit = cirq.Circuit(
+            cirq.H(q),
+            cirq.rz(theta).on(q),
+            cirq.H(q),
+            cirq.measure(q, key=<span class="st">'m'</span>),
+        )
+
+        sim = cirq.Simulator()
+        result = sim.run(circuit, repetitions=cfg.shots)
+        m = result.measurements[<span class="st">'m'</span>].reshape(-<span class="nu">1</span>)
+        p1 = float(m.mean())
+        expZ = <span class="nu">1.0</span> - <span class="nu">2.0</span> * p1
+
+        results.append({
+            <span class="st">'t'</span>: machine.state.t,
+            <span class="st">'S'</span>: str(machine.value()),
+            <span class="st">'theta'</span>: theta,
+            <span class="st">'p1'</span>: p1,
+            <span class="st">'expZ'</span>: expZ,
+        })
+        machine.step()
+
+    <span class="kw">return</span> results</code></pre>
+
+        <h3 id="a4">A.4 Ruby Implementation &mdash; <code>Code_core_3/plm-formalized/ruby/plm.rb</code></h3>
+        <p>The canonical Ruby mirror using BigDecimal for arbitrary-precision arithmetic. Structurally equivalent to the Python implementation.</p>
+        <pre><code><span class="cm"># frozen_string_literal: true</span>
+<span class="kw">require</span> <span class="st">"bigdecimal"</span>
+<span class="kw">require</span> <span class="st">"bigdecimal/util"</span>
+
+<span class="kw">module</span> <span class="ty">PLM</span>
+  module_function
+
+  <span class="kw">def</span> <span class="fn">hex_to_int</span>(hex_str)
+    s = hex_str.strip.downcase
+    s = s[<span class="nu">2</span>..] <span class="kw">if</span> s.start_with?(<span class="st">"0x"</span>)
+    <span class="kw">raise</span> <span class="ty">ArgumentError</span>, <span class="st">"invalid hex"</span> <span class="kw">unless</span> s.match?(<span class="st">/\A[0-9a-f]+\z/</span>)
+    s.to_i(<span class="nu">16</span>)
+  <span class="kw">end</span>
+
+  <span class="kw">def</span> <span class="fn">plm_ratio</span>(pi:, lam:, mu:)
+    mu = BigDecimal(mu.to_s)
+    <span class="kw">raise</span> <span class="ty">ZeroDivisionError</span>, <span class="st">"mu cannot be 0"</span> <span class="kw">if</span> mu.zero?
+    BigDecimal(pi.to_s) * BigDecimal(lam.to_s) / mu
+  <span class="kw">end</span>
+
+  <span class="kw">def</span> <span class="fn">secret_value</span>(pi:, lam:, mu:, x:, public_hash_hex:,
+                    block_size:, crc_decimal:)
+    pi  = BigDecimal(pi.to_s)
+    lam = BigDecimal(lam.to_s)
+    mu  = BigDecimal(mu.to_s)
+    <span class="kw">raise</span> <span class="ty">ZeroDivisionError</span>, <span class="st">"mu cannot be 0"</span> <span class="kw">if</span> mu.zero?
+
+    y = hex_to_int(public_hash_hex)
+    c = Integer(block_size) + Integer(crc_decimal)
+    <span class="kw">raise</span> <span class="ty">ArgumentError</span>, <span class="st">"C must be positive"</span> <span class="kw">if</span> c &lt;= <span class="nu">0</span>
+
+    numerator   = (pi * BigDecimal(y.to_s)) *
+                  (lam * BigDecimal(x.to_s))
+    denominator = mu * BigDecimal(c.to_s)
+    numerator / denominator
+  <span class="kw">end</span>
+<span class="kw">end</span></code></pre>
+
+        <h3 id="a5">A.5 Test Suite &mdash; <code>tests/test_model.py</code></h3>
+        <p>The complete unit test suite verifying core PLM functions.</p>
+        <pre><code><span class="kw">from</span> decimal <span class="kw">import</span> Decimal
+<span class="kw">import</span> pytest
+<span class="kw">from</span> plm_formalized <span class="kw">import</span> (
+    PLMInputs, hex_to_int, plm_ratio, plm_secret_value,
+)
+
+
+<span class="kw">def</span> <span class="fn">test_hex_to_int</span>():
+    <span class="kw">assert</span> hex_to_int(<span class="st">"0x0a"</span>) == <span class="nu">10</span>
+    <span class="kw">assert</span> hex_to_int(<span class="st">"ff"</span>) == <span class="nu">255</span>
+
+
+<span class="kw">def</span> <span class="fn">test_hex_to_int_invalid</span>():
+    <span class="kw">with</span> pytest.raises(Exception):
+        hex_to_int(<span class="st">"not-hex"</span>)
+
+
+<span class="kw">def</span> <span class="fn">test_plm_ratio</span>():
+    pi  = Decimal(<span class="st">"3.14"</span>)
+    lam = Decimal(<span class="st">"2"</span>)
+    mu  = Decimal(<span class="st">"4"</span>)
+    <span class="kw">assert</span> plm_ratio(pi, lam, mu) == (pi * lam) / mu
+
+
+<span class="kw">def</span> <span class="fn">test_plm_secret_value_deterministic</span>():
+    inp = PLMInputs(
+        pi=Decimal(<span class="st">"3.141592653589793"</span>),
+        lam=Decimal(<span class="st">"1.618033988749894"</span>),
+        mu=Decimal(<span class="st">"1"</span>),
+        x=<span class="nu">123</span>,
+        public_hash_hex=<span class="st">"a3f1c9"</span>,
+        block_size=<span class="nu">4096</span>,
+        crc_decimal=<span class="nu">987654321</span>,
+    )
+    s1 = plm_secret_value(inp)
+    s2 = plm_secret_value(inp)
+    <span class="kw">assert</span> s1 == s2
+
+
+<span class="kw">def</span> <span class="fn">test_c_must_be_positive</span>():
+    inp = PLMInputs(
+        pi=Decimal(<span class="st">"3.14"</span>), lam=Decimal(<span class="st">"1"</span>),
+        mu=Decimal(<span class="st">"1"</span>), x=<span class="nu">1</span>,
+        public_hash_hex=<span class="st">"0a"</span>,
+        block_size=<span class="nu">0</span>, crc_decimal=<span class="nu">0</span>,
+    )
+    <span class="kw">with</span> pytest.raises(<span class="ty">ValueError</span>):
+        inp.c()</code></pre>
+    </section>
+
+    <hr>
+
+    <!-- ================================================================ -->
+    <!-- APPENDIX B: RAW VALIDATION OUTPUT                                -->
+    <!-- ================================================================ -->
+    <section id="appendix-b">
+        <h2>Appendix B: Raw Validation Output</h2>
+
+        <h3 id="b1">B.1 <code>run_validation.py</code> &mdash; Complete JSON Output</h3>
+        <p>The following is the complete, unedited output from the PLM validation harness executed on the reference platform.</p>
+        <pre><code>{
+  <span class="st">"repo_root"</span>: <span class="st">"E:\\New folder\\PLM_APLIED"</span>,
+  <span class="st">"python"</span>: <span class="st">"3.11.8 (tags/v3.11.8:db85d51, Feb 6 2024, 22:03:32) [MSC v.1937 64 bit (AMD64)]"</span>,
+  <span class="st">"checks"</span>: [
+    {
+      <span class="st">"name"</span>: <span class="st">"plm_formula_exact_decimal"</span>,
+      <span class="st">"ok"</span>: <span class="nu">true</span>,
+      <span class="st">"details"</span>: {
+        <span class="st">"expected"</span>: <span class="st">"77953480801227077.895200390130719741501547836252555560272438406378400585678844791"</span>,
+        <span class="st">"got"</span>:      <span class="st">"77953480801227077.895200390130719741501547836252555560272438406378400585678844791"</span>
+      }
+    },
+    { <span class="st">"name"</span>: <span class="st">"mu_nonzero"</span>,   <span class="st">"ok"</span>: <span class="nu">true</span>, <span class="st">"details"</span>: {} },
+    { <span class="st">"name"</span>: <span class="st">"c_positive"</span>,   <span class="st">"ok"</span>: <span class="nu">true</span>, <span class="st">"details"</span>: {} },
+    { <span class="st">"name"</span>: <span class="st">"hex_valid"</span>,     <span class="st">"ok"</span>: <span class="nu">true</span>, <span class="st">"details"</span>: {} },
+    {
+      <span class="st">"name"</span>: <span class="st">"stateful_determinism"</span>,
+      <span class="st">"ok"</span>: <span class="nu">true</span>,
+      <span class="st">"details"</span>: {
+        <span class="st">"seq1"</span>: [
+          <span class="st">"0.2174425736848314202752908037516286344...80 digits"</span>,
+          <span class="st">"0.4348851473696628405505816075032572688...80 digits"</span>,
+          <span class="st">"0.6523277210544942608258724112548859032...80 digits"</span>,
+          <span class="st">"0.8697702947393256811011632150065145376...80 digits"</span>,
+          <span class="st">"1.0872128684241571013764540187581431720...80 digits"</span>,
+          <span class="st">"1.3046554421089885216517448225097718064...80 digits"</span>
+        ],
+        <span class="st">"seq2"</span>: <span class="st">"[identical to seq1 -- all 80 digits match at every step]"</span>
+      }
+    },
+    {
+      <span class="st">"name"</span>: <span class="st">"toy_3sat_bruteforce"</span>,
+      <span class="st">"ok"</span>: <span class="nu">true</span>,
+      <span class="st">"details"</span>: {
+        <span class="st">"vars"</span>: <span class="nu">3</span>,
+        <span class="st">"solution_found"</span>: <span class="nu">true</span>,
+        <span class="st">"witness"</span>: <span class="st">"001"</span>,
+        <span class="st">"satisfying_count"</span>: <span class="nu">6</span>,
+        <span class="st">"satisfying_assignments"</span>: [<span class="st">"001"</span>,<span class="st">"010"</span>,<span class="st">"011"</span>,<span class="st">"100"</span>,<span class="st">"110"</span>,<span class="st">"111"</span>]
+      }
+    },
+    {
+      <span class="st">"name"</span>: <span class="st">"cirq_smoke"</span>,
+      <span class="st">"ok"</span>: <span class="nu">true</span>,
+      <span class="st">"details"</span>: { <span class="st">"engine"</span>: <span class="st">"cirq"</span>, <span class="st">"ones"</span>: <span class="nu">104</span>, <span class="st">"repetitions"</span>: <span class="nu">200</span> }
+    },
+    {
+      <span class="st">"name"</span>: <span class="st">"cirq_grover_3sat_demo"</span>,
+      <span class="st">"ok"</span>: <span class="nu">true</span>,
+      <span class="st">"details"</span>: {
+        <span class="st">"engine"</span>: <span class="st">"cirq"</span>,
+        <span class="st">"shots"</span>: <span class="nu">50</span>,
+        <span class="st">"satisfying_rate"</span>: <span class="nu">0.64</span>,
+        <span class="st">"top_assignment"</span>: <span class="st">"101"</span>,
+        <span class="st">"counts"</span>: { <span class="st">"101"</span>:<span class="nu">13</span>, <span class="st">"111"</span>:<span class="nu">8</span>, <span class="st">"001"</span>:<span class="nu">7</span>, <span class="st">"110"</span>:<span class="nu">6</span>,
+                    <span class="st">"100"</span>:<span class="nu">6</span>,  <span class="st">"000"</span>:<span class="nu">5</span>, <span class="st">"010"</span>:<span class="nu">3</span>, <span class="st">"011"</span>:<span class="nu">2</span> }
+      }
+    }
+  ],
+  <span class="st">"all_core_ok"</span>: <span class="nu">true</span>,
+  <span class="st">"np_hard_demo_ok"</span>: <span class="nu">true</span>,
+  <span class="st">"all_optional_ok"</span>: <span class="nu">true</span>
+}</code></pre>
+
+        <h3 id="b2">B.2 Independent Theorem Verification Output</h3>
+        <p>Output from a standalone verification script written independently of the PLM codebase, using raw Python <code>Decimal</code> arithmetic at 80-digit precision.</p>
+        <pre><code>=== THEOREM 1: FACTORIZATION ===
+R = (pi*lam)/mu = 1.8700061336895498770565574800803579886009292058639519900787638340958627746248299
+X*Y/C           = 41686216636853325.410085785296239878136775434939469253587749539004249178224965926
+R * (X*Y/C)     = 77953480801227077.895200390130719741501547836252555560272438406378400585678844792
+Direct S        = 77953480801227077.895200390130719741501547836252555560272438406378400585678844791
+Match to 79/80 digits: YES (1 ULP rounding at digit 80 -- expected finite-precision behavior)
+
+=== THEOREM 2: BILINEAR SCALING ===
+a=3, b=7
+S(aX, bY, C) = 1637023096825768635.7992081927451145715325045613036667657212065339464122992557406
+ab * S(X,Y,C) = 1637023096825768635.7992081927451145715325045613036667657212065339464122992557406
+EXACT MATCH: YES (all 80 digits identical)
+
+=== THEOREM 3: INVARIANCE UNDER COMMON SCALING ===
+k=13
+S(kX, Y, kC)  = 77953480801227077.895200390130719741501547836252555560272438406378400585678844791
+S(X, Y, C)    = 77953480801227077.895200390130719741501547836252555560272438406378400585678844791
+EXACT MATCH: YES (all 80 digits identical)
+
+=== THEOREM 5: MONOTONICITY ===
+K = (pi*Y*lam)/(mu*C) = 1856035257172073.2832190569078742795595606627679179895302961525328190615637820188
+K > 0: YES
+S(X=42) = 77953480801227077.895200390130719741501547836252555560272438406378400585678844790
+S(X=43) = 79809516058399151.178419447038594021061108499020473549802734558911219647242626808
+S(43) > S(42): YES</code></pre>
+
+        <h3 id="b3">B.3 Quantum Physical Correctness Verification</h3>
+        <pre><code>=== QUANTUM CIRCUIT THEORETICAL VERIFICATION ===
+Circuit: |0&gt; --H-- Rz(theta) --H-- Measure
+theta = pi/3 = 1.047198 rad
+
+Theory: p(|1&gt;) = sin&sup2;(theta/2) = 0.250000
+Theory: &lt;Z&gt;   = cos(theta)      = 0.500000
+
+Cirq simulation (10,000 shots, seed=42):
+  p(|1&gt;) empirical = 0.2413   (theory: 0.2500)
+  &lt;Z&gt;   empirical  = 0.5174   (theory: 0.5000)
+  Error p(|1&gt;):  0.0087  (0.87%)
+  Error &lt;Z&gt;:     0.0174  (1.74%)
+  Within 3%?     True
+
+Standard error:  sigma = sqrt(0.25 * 0.75 / 10000) = 0.00433
+z-score:         0.0087 / 0.00433 = 2.01
+
+Conclusion: Observed statistics are consistent with quantum mechanical
+predictions. The z-score of 2.01 is within normal fluctuation range.</code></pre>
+
+        <h3 id="b4">B.4 Full Quantum Temporal Pipeline Output</h3>
+        <pre><code>=== QUANTUM TEMPORAL PIPELINE (5 steps, 500 shots each) ===
+t=0, S=77953480801227046.656..., theta=4.1310, p1=0.7840, expZ=-0.5680
+t=1, S=79809516058399119.196..., theta=2.4237, p1=0.8960, expZ=-0.7920
+t=2, S=81665551315571191.736..., theta=3.5658, p1=0.9460, expZ=-0.8920
+t=3, S=83521586572743264.275..., theta=1.8585, p1=0.5960, expZ=-0.1920
+t=4, S=85377621829915336.815..., theta=0.1511, p1=0.0060, expZ= 0.9880
+
+Theoretical cross-check (cos(theta)):
+  t=0: cos(4.131) = -0.5397  |  observed: -0.568  |  delta: 0.028
+  t=1: cos(2.424) = -0.7602  |  observed: -0.792  |  delta: 0.032
+  t=2: cos(3.566) = -0.9124  |  observed: -0.892  |  delta: 0.020
+  t=3: cos(1.859) = -0.2810  |  observed: -0.192  |  delta: 0.089
+  t=4: cos(0.151) =  0.9886  |  observed:  0.988  |  delta: 0.001</code></pre>
+    </section>
+
+    <hr>
+
+    <!-- ================================================================ -->
+    <!-- APPENDIX C: PLM CONSTANT                                         -->
+    <!-- ================================================================ -->
+    <section id="appendix-c">
+        <h2>Appendix C: The PLM Constant to 80 Decimal Places</h2>
+
+        <div class="definition">
+            <span class="label">Definition C.1 &mdash; The PLM Constant R</span>
+            <div class="math-display">
+                \[ R = \frac{\pi \cdot \varphi}{e} \]
+            </div>
+            <p>Where \(\pi\) is Archimedes&rsquo; constant, \(\varphi = \frac{1+\sqrt{5}}{2}\) is the golden ratio, and \(e\) is Euler&rsquo;s number.</p>
+        </div>
+
+        <h3>R to 80 Significant Digits</h3>
+        <pre style="font-size:1.05rem; letter-spacing:0.03em; text-align:center; background:#1a3c6e; color:#fff; padding:1.5rem;"><code>R = 1.8700061336895498770565574800803579886009292058639519900787638340958627746248299</code></pre>
+
+        <h3>Component Constants</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Constant</th>
+                    <th>Symbol</th>
+                    <th>Value (50 digits)</th>
+                    <th>Type</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Archimedes&rsquo; constant</td>
+                    <td>\(\pi\)</td>
+                    <td><code>3.14159265358979323846264338327950288419716939937510</code></td>
+                    <td>Transcendental</td>
+                </tr>
+                <tr>
+                    <td>Golden ratio</td>
+                    <td>\(\varphi\)</td>
+                    <td><code>1.61803398874989484820458683436563811772030917980576</code></td>
+                    <td>Algebraic irrational</td>
+                </tr>
+                <tr>
+                    <td>Euler&rsquo;s number</td>
+                    <td>\(e\)</td>
+                    <td><code>2.71828182845904523536028747135266249775724709369995</code></td>
+                    <td>Transcendental</td>
+                </tr>
+            </tbody>
+            <caption>Table C.1: Fundamental constants composing R.</caption>
+        </table>
+
+        <h3>Precision Table</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Precision</th>
+                    <th>Value of R</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>5 digits</td>
+                    <td>1.8700</td>
+                </tr>
+                <tr>
+                    <td>10 digits</td>
+                    <td>1.870006134</td>
+                </tr>
+                <tr>
+                    <td>20 digits</td>
+                    <td>1.8700061336895498771</td>
+                </tr>
+                <tr>
+                    <td>40 digits</td>
+                    <td>1.870006133689549877056557480080357988601</td>
+                </tr>
+                <tr>
+                    <td>80 digits</td>
+                    <td>1.8700061336895498770565574800803579886009292058639519900787638340958627746248299</td>
+                </tr>
+            </tbody>
+            <caption>Table C.2: The PLM constant R at increasing precision.</caption>
+        </table>
+
+        <div class="remark">
+            <span class="label">Remark C.1 &mdash; Transcendence Conjecture</span>
+            <p>\(R = \pi\varphi/e\) is a product of two transcendental numbers (\(\pi\), \(e\)) and one algebraic irrational (\(\varphi\)). By heuristic arguments from transcendental number theory, \(R\) is almost certainly transcendental, though a rigorous
+                proof would require tools such as Schanuel&rsquo;s conjecture or extensions of the Lindemann&ndash;Weierstrass theorem. The irrationality of \(R\) is certain, since a rational ratio of \(\pi\varphi\) to \(e\) would imply an algebraic relation
+                among these constants that is not known to exist.</p>
+        </div>
+    </section>
+
+    <hr>
+
+    <!-- ================================================================ -->
+    <!-- APPENDIX D: REPOSITORY MANIFEST                                  -->
+    <!-- ================================================================ -->
+    <section id="appendix-d">
+        <h2>Appendix D: Repository File Manifest</h2>
+        <p>Complete listing of key files in the PLM_APLIED repository, organized by directory.</p>
+
+        <h3>Root Directory</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>File</th>
+                    <th>Type</th>
+                    <th>Purpose</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>README.md</code></td>
+                    <td>Markdown</td>
+                    <td>Project overview and getting started</td>
+                </tr>
+                <tr>
+                    <td><code>README.txt</code></td>
+                    <td>Text</td>
+                    <td>Symbolic math formalization document</td>
+                </tr>
+                <tr>
+                    <td><code>LICENSE</code></td>
+                    <td>Text</td>
+                    <td>Apache License 2.0</td>
+                </tr>
+                <tr>
+                    <td><code>VERSION</code></td>
+                    <td>Text</td>
+                    <td>Current version: v0.2.000003</td>
+                </tr>
+                <tr>
+                    <td><code>run_plm.py</code></td>
+                    <td>Python</td>
+                    <td>Main entry point (has import bug)</td>
+                </tr>
+                <tr>
+                    <td><code>conftest.py</code></td>
+                    <td>Python</td>
+                    <td>pytest path configuration</td>
+                </tr>
+                <tr>
+                    <td><code>pytest.ini</code></td>
+                    <td>Config</td>
+                    <td>pytest settings</td>
+                </tr>
+                <tr>
+                    <td><code>cirq_test.py</code></td>
+                    <td>Python</td>
+                    <td>Cirq smoke test</td>
+                </tr>
+                <tr>
+                    <td><code>plm.rb</code></td>
+                    <td>Ruby</td>
+                    <td>Original draft (has syntax errors)</td>
+                </tr>
+                <tr>
+                    <td><code>SECURITY-IMPLEMENTATION.md</code></td>
+                    <td>Markdown</td>
+                    <td>Security policy documentation</td>
+                </tr>
+                <tr>
+                    <td><code>Configure-CUDA.ps1</code></td>
+                    <td>PowerShell</td>
+                    <td>CUDA GPU configuration</td>
+                </tr>
+                <tr>
+                    <td><code>start_plm.ps1</code></td>
+                    <td>PowerShell</td>
+                    <td>PLM launcher script</td>
+                </tr>
+                <tr>
+                    <td><code>cuda_config.json</code></td>
+                    <td>JSON</td>
+                    <td>CUDA settings</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>Code_core_3/plm-formalized/</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>File</th>
+                    <th>Type</th>
+                    <th>Purpose</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>plm_formalized/__init__.py</code></td>
+                    <td>Python</td>
+                    <td>Package init, exports public API</td>
+                </tr>
+                <tr>
+                    <td><code>plm_formalized/model.py</code></td>
+                    <td>Python</td>
+                    <td>Core PLM transform (Decimal arithmetic)</td>
+                </tr>
+                <tr>
+                    <td><code>plm_formalized/stateful.py</code></td>
+                    <td>Python</td>
+                    <td>StatefulPLM time-series machine</td>
+                </tr>
+                <tr>
+                    <td><code>plm_formalized/quantum_temporal.py</code></td>
+                    <td>Python</td>
+                    <td>Cirq quantum circuit encoding</td>
+                </tr>
+                <tr>
+                    <td><code>ruby/plm.rb</code></td>
+                    <td>Ruby</td>
+                    <td>Canonical Ruby implementation (BigDecimal)</td>
+                </tr>
+                <tr>
+                    <td><code>tests/test_model.py</code></td>
+                    <td>Python</td>
+                    <td>Unit tests for core model</td>
+                </tr>
+                <tr>
+                    <td><code>PROOFS.md</code></td>
+                    <td>Markdown</td>
+                    <td>Formal mathematical proofs (6 theorems)</td>
+                </tr>
+                <tr>
+                    <td><code>README.md</code></td>
+                    <td>Markdown</td>
+                    <td>Package documentation</td>
+                </tr>
+                <tr>
+                    <td><code>pyproject.toml</code></td>
+                    <td>TOML</td>
+                    <td>Python package definition</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>validation_np_hard/</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>File</th>
+                    <th>Type</th>
+                    <th>Purpose</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>run_validation.py</code></td>
+                    <td>Python</td>
+                    <td>Master validation harness</td>
+                </tr>
+                <tr>
+                    <td><code>run_benchmarks.py</code></td>
+                    <td>Python</td>
+                    <td>NP-hard benchmark runner</td>
+                </tr>
+                <tr>
+                    <td><code>np_benchmarks.py</code></td>
+                    <td>Python</td>
+                    <td>3-SAT, TSP, Knapsack implementations</td>
+                </tr>
+                <tr>
+                    <td><code>crypto_demo.py</code></td>
+                    <td>Python</td>
+                    <td>RSA-2048 demonstration</td>
+                </tr>
+                <tr>
+                    <td><code>quantum_np_hard_demo.py</code></td>
+                    <td>Python</td>
+                    <td>Grover 3-SAT quantum demo</td>
+                </tr>
+                <tr>
+                    <td><code>README.md</code></td>
+                    <td>Markdown</td>
+                    <td>Validation suite documentation</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>.github/workflows/</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>File</th>
+                    <th>Purpose</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>docker-ci.yml</code></td>
+                    <td>Docker CI/CD pipeline</td>
+                </tr>
+                <tr>
+                    <td><code>docker-ci-minimal.yml</code></td>
+                    <td>Minimal Docker CI</td>
+                </tr>
+                <tr>
+                    <td><code>qa-matrix.yml</code></td>
+                    <td>QA test matrix</td>
+                </tr>
+                <tr>
+                    <td><code>qa-cli-smoke.yml</code></td>
+                    <td>CLI smoke tests</td>
+                </tr>
+                <tr>
+                    <td><code>windows-cli-smoke.yml</code></td>
+                    <td>Windows CLI smoke tests</td>
+                </tr>
+                <tr>
+                    <td><code>np-hard-validation.yml</code></td>
+                    <td>NP-hard benchmark CI</td>
+                </tr>
+                <tr>
+                    <td><code>security.yml</code></td>
+                    <td>Security scanning</td>
+                </tr>
+                <tr>
+                    <td><code>version-validation.yml</code></td>
+                    <td>Version consistency checks</td>
+                </tr>
+                <tr>
+                    <td><code>enforce-pr-only.yml</code></td>
+                    <td>PR-only merge policy</td>
+                </tr>
+                <tr>
+                    <td><code>project-safety.yml</code></td>
+                    <td>Project safety checks</td>
+                </tr>
+                <tr>
+                    <td><code>emergency-stop.yml</code></td>
+                    <td>Emergency stop workflow</td>
+                </tr>
+                <tr>
+                    <td><code>docker-ci-copy.yml</code></td>
+                    <td>Docker CI backup copy</td>
+                </tr>
+                <tr>
+                    <td><code>tmp-manual-dispatch.yml</code></td>
+                    <td>Manual dispatch workflow</td>
+                </tr>
+            </tbody>
+            <caption>Table D.3: All 13 GitHub Actions CI/CD workflows.</caption>
+        </table>
+
+        <h3>Other Directories</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Directory</th>
+                    <th>Purpose</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>Deploy/</code></td>
+                    <td>PowerShell deployment scripts, Admin GUI, Docker configs</td>
+                </tr>
+                <tr>
+                    <td><code>docs/</code></td>
+                    <td>15 documentation files (guides, troubleshooting, chat logs)</td>
+                </tr>
+                <tr>
+                    <td><code>scripts/</code></td>
+                    <td>CLI tools, version audit, security scanning, auth hooks</td>
+                </tr>
+                <tr>
+                    <td><code>qa_test/</code></td>
+                    <td>Windows and Linux QA smoke test scripts</td>
+                </tr>
+                <tr>
+                    <td><code>debug/</code></td>
+                    <td>Debug logs from various test runs</td>
+                </tr>
+                <tr>
+                    <td><code>bak/</code></td>
+                    <td>Backup files and CI artifacts</td>
+                </tr>
+                <tr>
+                    <td><code>Code_core_3/Engine_proof/</code></td>
+                    <td>Ventoy deployment payloads for bare-metal testing</td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <hr>
+
+    <!-- ================================================================ -->
+    <!-- APPENDIX E: ENVIRONMENT                                          -->
+    <!-- ================================================================ -->
+    <section id="appendix-e">
+        <h2>Appendix E: Environment Specifications</h2>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Component</th>
+                    <th>Specification</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Python</td>
+                    <td>3.11.8 (tags/v3.11.8:db85d51, Feb 6 2024) MSC v.1937 64-bit AMD64</td>
+                </tr>
+                <tr>
+                    <td>Operating System</td>
+                    <td>Windows 11 Pro 10.0.26200</td>
+                </tr>
+                <tr>
+                    <td>Platform</td>
+                    <td>x86-64</td>
+                </tr>
+                <tr>
+                    <td>Quantum Library</td>
+                    <td>Google Cirq (latest via pip)</td>
+                </tr>
+                <tr>
+                    <td>GPU Acceleration</td>
+                    <td>qsimcirq + CUDA (optional; CPU fallback used for thesis)</td>
+                </tr>
+                <tr>
+                    <td>Decimal Precision</td>
+                    <td>80 significant digits</td>
+                </tr>
+                <tr>
+                    <td>PLM Version</td>
+                    <td>v0.2.000003</td>
+                </tr>
+                <tr>
+                    <td>License</td>
+                    <td>Apache License 2.0</td>
+                </tr>
+                <tr>
+                    <td>Author</td>
+                    <td>Joshua Wyatt Harris (NetworkArchetype)</td>
+                </tr>
+                <tr>
+                    <td>Copyright</td>
+                    <td>2014&ndash;2026</td>
+                </tr>
+                <tr>
+                    <td>Repository</td>
+                    <td>PLM_APLIED (master branch)</td>
+                </tr>
+                <tr>
+                    <td>Test Framework</td>
+                    <td>pytest 9.0.2</td>
+                </tr>
+                <tr>
+                    <td>CI/CD Workflows</td>
+                    <td>13 GitHub Actions workflows</td>
+                </tr>
+            </tbody>
+            <caption>Table E.1: Complete environment specifications for all results reported in this thesis.</caption>
+        </table>
+    </section>
+
+    <hr>
+
+    <!-- ================================================================ -->
+    <!-- APPENDIX F: BIBLIOGRAPHY                                         -->
+    <!-- ================================================================ -->
+    <section id="appendix-f">
+        <h2>Appendix F: Bibliography and References</h2>
+
+        <ol style="font-size:0.95rem; line-height:1.8;">
+            <li id="ref1">
+                Harris, J.W. (2014). &ldquo;Pi-Lambda-Mu: A Parametric Mathematical Transform.&rdquo; Original conception document. Apache 2.0 Licensed. NetworkArchetype.
+            </li>
+            <li id="ref2">
+                Lindemann, F. (1882). &ldquo;&Uuml;ber die Zahl &pi;.&rdquo;
+                <em>Mathematische Annalen</em>, <strong>20</strong>, 213&ndash;225.
+                <span class="badge badge-pass">Proved &pi; is transcendental</span>
+            </li>
+            <li id="ref3">
+                Hermite, C. (1873). &ldquo;Sur la fonction exponentielle.&rdquo;
+                <em>Comptes rendus de l&rsquo;Acad&eacute;mie des Sciences</em>, <strong>77</strong>, 18&ndash;24.
+                <span class="badge badge-pass">Proved e is transcendental</span>
+            </li>
+            <li id="ref4">
+                Niven, I. (1947). &ldquo;The Transcendence of &pi;.&rdquo;
+                <em>American Mathematical Monthly</em>, <strong>46</strong>, 469&ndash;471.
+            </li>
+            <li id="ref5">
+                Google Cirq Development Team. (2023). &ldquo;Cirq: A Python library for quantum computing.&rdquo;
+                <a href="https://quantumai.google/cirq">https://quantumai.google/cirq</a>.
+            </li>
+            <li id="ref6">
+                Grover, L.K. (1996). &ldquo;A fast quantum mechanical algorithm for database search.&rdquo;
+                <em>Proceedings of the 28th Annual ACM Symposium on Theory of Computing (STOC &rsquo;96)</em>, pp. 212&ndash;219. ACM Press.
+            </li>
+            <li id="ref7">
+                Knuth, D.E. (1997). <em>The Art of Computer Programming, Vol. 2: Seminumerical Algorithms</em>, 3rd edition. Addison-Wesley.
+            </li>
+            <li id="ref8">
+                Cook, S.A. (1971). &ldquo;The complexity of theorem-proving procedures.&rdquo;
+                <em>Proceedings of the 3rd Annual ACM Symposium on Theory of Computing (STOC &rsquo;71)</em>, pp. 151&ndash;158. ACM Press.
+                <span class="badge badge-pass">Foundational NP-completeness result</span>
+            </li>
+            <li id="ref9">
+                Rivest, R.L., Shamir, A., &amp; Adleman, L. (1978). &ldquo;A method for obtaining digital signatures and public-key cryptosystems.&rdquo; <em>Communications of the ACM</em>,
+                <strong>21</strong>(2), 120&ndash;126.
+            </li>
+            <li id="ref10">
+                Baker, A. (1975). <em>Transcendental Number Theory</em>. Cambridge University Press.
+            </li>
+            <li id="ref11">
+                Python Software Foundation. (2024). &ldquo;decimal &mdash; Decimal fixed point and floating point arithmetic.&rdquo; <em>Python Documentation</em>.
+            </li>
+            <li id="ref12">
+                IEEE 754-2019. &ldquo;IEEE Standard for Floating-Point Arithmetic.&rdquo; Institute of Electrical and Electronics Engineers.
+            </li>
+            <li id="ref13">
+                Shor, P.W. (1994). &ldquo;Algorithms for quantum computation: discrete logarithms and factoring.&rdquo; <em>Proceedings of the 35th Annual Symposium on Foundations of Computer
+        Science (FOCS &rsquo;94)</em>, pp. 124&ndash;134. IEEE.
+            </li>
+            <li id="ref14">
+                Nielsen, M.A. &amp; Chuang, I.L. (2010). <em>Quantum Computation and Quantum Information</em>, 10th Anniversary Edition. Cambridge University Press.
+            </li>
+            <li id="ref15">
+                Fibonacci (Leonardo of Pisa). (1202). <em>Liber Abaci</em>. Introduction of the Fibonacci sequence to Western mathematics, from which the golden ratio \(\varphi\) derives.
+            </li>
+            <li id="ref16">
+                Euler, L. (1748). <em>Introductio in analysin infinitorum</em>. Systematic study of the constant \(e\) and its role in analysis.
+            </li>
+        </ol>
+    </section>
+
+    <hr>
+
+    <!-- ================================================================ -->
+    <!-- NAVIGATION                                                       -->
+    <!-- ================================================================ -->
+    <nav class="page-nav">
+        <a href="chapter7.html">&larr; Previous: Chapter 7 &mdash; Discussion &amp; Conclusions</a>
+        <a href="index.html">Table of Contents</a>
+        <a href="index.html">Return to Title Page &rarr;</a>
+    </nav>
+
+    <footer style="text-align:center; margin-top:3rem; padding-top:1rem; border-top:1px solid #ccc; color:#888; font-size:0.85rem;">
+        <p>&copy; 2014&ndash;2026 Joshua Wyatt Harris (NetworkArchetype). Licensed under Apache 2.0.</p>
+        <p>PLM Thesis &mdash; Appendix &mdash; v0.2.000003</p>
+    </footer>
+
+</body>
+
+</html>

@@ -1,0 +1,74 @@
+{
+  "runner": "prove_plm_theorems.py",
+  "language": "Python",
+  "precision_digits": 80,
+  "elapsed_seconds": 3.9803,
+  "passed": 9,
+  "total": 9,
+  "all_passed": true,
+  "results": [
+    {
+      "name": "Theorem 1: Factorisation Identity",
+      "passed": true,
+      "lhs": "77953480801227083.810752756885847029454783098600125838437645...",
+      "rhs": "77953480801227083.810752756885847029454783098600125838437645...",
+      "detail": "|LHS - RHS| = 3E-63  (<= tol 1E-60)"
+    },
+    {
+      "name": "Theorem 2: Bilinear Scaling",
+      "passed": true,
+      "lhs": "7093766752911664626.7785008766120796803852619726114512978257...",
+      "rhs": "7093766752911664626.7785008766120796803852619726114512978257...",
+      "detail": "|LHS - RHS| = 2E-61  (<= tol 1E-60)"
+    },
+    {
+      "name": "Theorem 3: Ratio Invariance (pi,mu scaled by k)",
+      "passed": true,
+      "lhs": "77953480801227083.810752756885847029454783098600125838437645...",
+      "rhs": "77953480801227083.810752756885847029454783098600125838437645...",
+      "detail": "|LHS - RHS| = 2E-63  (<= tol 1E-60)"
+    },
+    {
+      "name": "Theorem 4: Sign Antisymmetry",
+      "passed": true,
+      "lhs": "-77953480801227083.81075275688584702945478309860012583843764...",
+      "rhs": "-77953480801227083.81075275688584702945478309860012583843764...",
+      "detail": "Exact match: True"
+    },
+    {
+      "name": "Theorem 5: Monotonicity in X",
+      "passed": true,
+      "lhs": "S(X=100) = 185603525717207342.406554183061540546320...",
+      "rhs": "S(X=42) = 77953480801227083.8107527568858470294547...",
+      "detail": "S(100) > S(42): True"
+    },
+    {
+      "name": "Theorem 6: Lipschitz Continuity",
+      "passed": true,
+      "lhs": "|dS| = 107650044915980258.595801426175693516866...",
+      "rhs": "L*|dX| = 107650044915980258.595801426175693516866...",
+      "detail": "|dS| <= L*|dX|: True"
+    },
+    {
+      "name": "PLM Constant R = \u03c0\u00b7\u03c6/e",
+      "passed": true,
+      "lhs": "1.8700061336895500189632317721626584582499630437209578575584370696046228982570298",
+      "rhs": "",
+      "detail": "R = 1.8700061336895500189632317721626584582499630437209578575584370696046228982570298"
+    },
+    {
+      "name": "Determinism (100 runs)",
+      "passed": true,
+      "lhs": "77953480801227083.810752756885847029454783098600125838437645...",
+      "rhs": "(all 100 identical)",
+      "detail": "All identical: True"
+    },
+    {
+      "name": "Cross-validation: standalone vs codebase",
+      "passed": true,
+      "lhs": "standalone = 77953480801227083.81075275688584702945478309860012...",
+      "rhs": "codebase   = 77953480801227083.81075275688584702945478309860012...",
+      "detail": "Match: True"
+    }
+  ]
+}

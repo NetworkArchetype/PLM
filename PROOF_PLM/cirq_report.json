@@ -1,0 +1,74 @@
+{
+  "runner": "cirq_runner.py",
+  "status": "PASS",
+  "cirq_version": "1.6.1",
+  "shots_per_step": 5000,
+  "steps": 5,
+  "elapsed_seconds": 0.0669,
+  "max_p1_error_pct": 0.3103,
+  "max_expZ_error_pct": 0.6206,
+  "within_5pct_threshold": true,
+  "circuit_ascii": "0: \u2500\u2500\u2500H\u2500\u2500\u2500Rz(theta)\u2500\u2500\u2500H\u2500\u2500\u2500M('m')\u2500\u2500\u2500",
+  "physics_verified": {
+    "p1_equals_sin2_theta_half": true,
+    "expZ_equals_cos_theta": true,
+    "explanation": "H-Rz(theta)-H on |0>: p(|1>) = sin^2(theta/2), <Z> = cos(theta)"
+  },
+  "step_results": [
+    {
+      "t": 0,
+      "S": "1856035257172073.424065541830615405463209121395241...",
+      "theta": 4.358998,
+      "p1_empirical": 0.6702,
+      "p1_theoretical": 0.673041,
+      "p1_error_pct": 0.2841,
+      "expZ_empirical": -0.3404,
+      "expZ_theoretical": -0.346081,
+      "expZ_error_pct": 0.5681
+    },
+    {
+      "t": 1,
+      "S": "3712070514344146.848131083661230810926418242790482...",
+      "theta": 2.434811,
+      "p1_empirical": 0.8794,
+      "p1_theoretical": 0.880228,
+      "p1_error_pct": 0.0828,
+      "expZ_empirical": -0.7588,
+      "expZ_theoretical": -0.760456,
+      "expZ_error_pct": 0.1656
+    },
+    {
+      "t": 2,
+      "S": "5568105771516220.272196625491846216389627364185723...",
+      "theta": 0.010624,
+      "p1_empirical": 0.0,
+      "p1_theoretical": 2.8e-05,
+      "p1_error_pct": 0.0028,
+      "expZ_empirical": 1.0,
+      "expZ_theoretical": 0.999944,
+      "expZ_error_pct": 0.0056
+    },
+    {
+      "t": 3,
+      "S": "7424141028688293.696262167322461621852836485580964...",
+      "theta": 4.869622,
+      "p1_empirical": 0.4234,
+      "p1_theoretical": 0.421707,
+      "p1_error_pct": 0.1693,
+      "expZ_empirical": 0.1532,
+      "expZ_theoretical": 0.156586,
+      "expZ_error_pct": 0.3386
+    },
+    {
+      "t": 4,
+      "S": "9280176285860367.120327709153077027316045606976205...",
+      "theta": 3.445435,
+      "p1_empirical": 0.9802,
+      "p1_theoretical": 0.977097,
+      "p1_error_pct": 0.3103,
+      "expZ_empirical": -0.9604,
+      "expZ_theoretical": -0.954194,
+      "expZ_error_pct": 0.6206
+    }
+  ]
+}
