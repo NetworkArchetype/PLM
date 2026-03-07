@@ -10,7 +10,7 @@ PLM mathematical transform:
 
 It includes:
 
-- **Full academic thesis** (9 HTML chapters + CSS, viewable in any browser)
+- **Full academic thesis** (9 HTML chapters + CSS — click any link below to read in your browser)
 - **Python theorem prover** — verifies all 6 algebraic theorems to 80 decimal digits
 - **Ruby theorem prover** — independent re-derivation using BigDecimal
 - **Cirq quantum verification runner** — H-Rz(theta)-H circuit physics, Bell state, Grover 3-SAT, full pipeline
@@ -70,6 +70,25 @@ python PROOF_PLM/run_all_tests.py --skip-ruby --skip-cirq
 | weasyprint   | Optional  | PDF generation                   |
 | wkhtmltopdf  | Optional  | Alternative PDF generation       |
 | Chrome/Edge  | Optional  | Best PDF quality (auto-detected) |
+
+### Read the Thesis (live HTML — click to open)
+
+> Each link renders the styled HTML chapter directly in your browser via GitHub.
+
+| #  | Chapter | Description |
+|----|---------|-------------|
+| 0  | [Title Page & Abstract](https://htmlpreview.github.io/?https://github.com/ISBC8SYN/PLM_APLIED/blob/master/PROOF_PLM/index.html) | Title, abstract, table of contents |
+| 1  | [Introduction & PLM Definition](https://htmlpreview.github.io/?https://github.com/ISBC8SYN/PLM_APLIED/blob/master/PROOF_PLM/chapter1.html) | The PLM transform, notation, scope |
+| 2  | [Mathematical Proofs](https://htmlpreview.github.io/?https://github.com/ISBC8SYN/PLM_APLIED/blob/master/PROOF_PLM/chapter2.html) | All 6 algebraic theorems derived |
+| 3  | [Implementation Analysis](https://htmlpreview.github.io/?https://github.com/ISBC8SYN/PLM_APLIED/blob/master/PROOF_PLM/chapter3.html) | Python & Ruby code walk-through |
+| 4  | [Empirical Validation](https://htmlpreview.github.io/?https://github.com/ISBC8SYN/PLM_APLIED/blob/master/PROOF_PLM/chapter4.html) | Statistical results & error analysis |
+| 5  | [Quantum Temporal Integration](https://htmlpreview.github.io/?https://github.com/ISBC8SYN/PLM_APLIED/blob/master/PROOF_PLM/chapter5.html) | Cirq circuits, Bell state, Grover |
+| 6  | [NP-Hard Benchmarks](https://htmlpreview.github.io/?https://github.com/ISBC8SYN/PLM_APLIED/blob/master/PROOF_PLM/chapter6.html) | Grover 3-SAT, benchmark results |
+| 7  | [Conclusions & Evidence](https://htmlpreview.github.io/?https://github.com/ISBC8SYN/PLM_APLIED/blob/master/PROOF_PLM/chapter7.html) | Summary of evidence, future work |
+| A  | [Appendix](https://htmlpreview.github.io/?https://github.com/ISBC8SYN/PLM_APLIED/blob/master/PROOF_PLM/appendix.html) | Full source listings & raw data |
+|    | [Combined Single-Page](https://htmlpreview.github.io/?https://github.com/ISBC8SYN/PLM_APLIED/blob/master/PROOF_PLM/combined_thesis.html) | All chapters in one page |
+
+> **Mirror:** All chapters are also available on the [NetworkArchetype/PLM](https://github.com/NetworkArchetype/PLM) mirror — replace `ISBC8SYN/PLM_APLIED` with `NetworkArchetype/PLM` in any link above.
 
 ### File Manifest
 

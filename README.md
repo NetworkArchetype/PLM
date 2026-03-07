@@ -46,6 +46,26 @@ This project targets Windows x86-64 with Python 3.9+ (tested on 3.12). Cirq runs
 - [Quick Start](docs/Quick-Start.md)
 - [Install Guide](docs/Install-Guide.md)
 
+## PLM Proof Thesis (PROOF_PLM/)
+
+Complete academic thesis with mathematical proofs, quantum verification, and cross-language validation. Click any chapter to read the rendered HTML:
+
+| Chapter | Title |
+|---------|-------|
+| [Title Page & Abstract](https://htmlpreview.github.io/?https://github.com/ISBC8SYN/PLM_APLIED/blob/master/PROOF_PLM/index.html) | Title, abstract, table of contents |
+| [Ch 1 — Introduction](https://htmlpreview.github.io/?https://github.com/ISBC8SYN/PLM_APLIED/blob/master/PROOF_PLM/chapter1.html) | PLM definition, notation, scope |
+| [Ch 2 — Mathematical Proofs](https://htmlpreview.github.io/?https://github.com/ISBC8SYN/PLM_APLIED/blob/master/PROOF_PLM/chapter2.html) | 6 algebraic theorems |
+| [Ch 3 — Implementation](https://htmlpreview.github.io/?https://github.com/ISBC8SYN/PLM_APLIED/blob/master/PROOF_PLM/chapter3.html) | Python & Ruby code analysis |
+| [Ch 4 — Empirical Validation](https://htmlpreview.github.io/?https://github.com/ISBC8SYN/PLM_APLIED/blob/master/PROOF_PLM/chapter4.html) | Statistical results & error analysis |
+| [Ch 5 — Quantum Integration](https://htmlpreview.github.io/?https://github.com/ISBC8SYN/PLM_APLIED/blob/master/PROOF_PLM/chapter5.html) | Cirq circuits, Bell state, Grover |
+| [Ch 6 — NP-Hard Benchmarks](https://htmlpreview.github.io/?https://github.com/ISBC8SYN/PLM_APLIED/blob/master/PROOF_PLM/chapter6.html) | Grover 3-SAT, benchmark results |
+| [Ch 7 — Conclusions](https://htmlpreview.github.io/?https://github.com/ISBC8SYN/PLM_APLIED/blob/master/PROOF_PLM/chapter7.html) | Summary of evidence, future work |
+| [Appendix](https://htmlpreview.github.io/?https://github.com/ISBC8SYN/PLM_APLIED/blob/master/PROOF_PLM/appendix.html) | Full source listings & raw data |
+| [Complete Thesis (single page)](https://htmlpreview.github.io/?https://github.com/ISBC8SYN/PLM_APLIED/blob/master/PROOF_PLM/combined_thesis.html) | All chapters combined |
+
+**Proof runners:** Python (9/9 PASS), Ruby (9/9 PASS), Cirq quantum (5/5 PASS).
+See [PROOF_PLM/README.md](PROOF_PLM/README.md) for full details, quick-start commands, and the downloadable ZIP.
+
 ## Security / Credentials
 
 - This repository does not store credentials. Scripts that need tokens/password-hashes prompt at runtime.
